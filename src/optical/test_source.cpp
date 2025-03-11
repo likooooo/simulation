@@ -1,89 +1,91 @@
-#include <source.hpp>
+#include <optical/source/source.hpp>
 #include <cuda_test_common.hpp>
 #include <cuda_vector.hpp>
 using namespace cuda;
 using TDisplay = pycallback_update_frame;
+using real = float;
+using ps = parametric_source<real>;
 void test_traditional_source(int xsize, int ysize, int test_count, TDisplay& display)
 {
-    pageable_vector<OLreal> source(xsize * ysize);
-    std::vector<OLreal> test(test_count);
+    pageable_vector<real> source(xsize * ysize);
+    std::vector<real> test(test_count);
     std::iota(test.begin(), test.end(), 0);
     for(auto sigma : test){
         sigma /= test_count;
-        source = pageable_vector<OLreal>(source.size());
-        get_traditional_source(source.data(), xsize, ysize, {sigma, 0, 0});
+        source = pageable_vector<real>(source.size());
+        ps::get_traditional_source(source.data(), xsize, ysize, {sigma, 0, 0});
         display(create_ndarray_from_vector(source, {xsize, ysize}));
     }
 }
 void test_annular_source(int xsize, int ysize, int test_count, TDisplay& display)
 {
-    pageable_vector<OLreal> source(xsize * ysize);
-    std::vector<OLreal> test(test_count);
+    pageable_vector<real> source(xsize * ysize);
+    std::vector<real> test(test_count);
     std::iota(test.begin(), test.end(), 0);
     for(auto sigma : test){
         sigma /= test_count;
-        source = pageable_vector<OLreal>(source.size());
-        get_annular_source(source.data(), xsize, ysize, {1.0, sigma, 0, 0});
+        source = pageable_vector<real>(source.size());
+        ps::get_annular_source(source.data(), xsize, ysize, {1.0, sigma, 0, 0});
         display(create_ndarray_from_vector(source, {xsize, ysize}));
     }
 }
 void test_dipole_fan_source(int xsize, int ysize, int test_count, TDisplay& display)
 {
-    pageable_vector<OLreal> source(xsize * ysize);
-    std::vector<OLreal> test(test_count);
+    pageable_vector<real> source(xsize * ysize);
+    std::vector<real> test(test_count);
     std::iota(test.begin(), test.end(), 0);
     for(auto sigma : test){
         sigma /= test_count;
-        source = pageable_vector<OLreal>(source.size());
-        get_dipole_fan_source(source.data(), xsize, ysize, {{0.5f + 0.5f * sigma, 0.5f, 0, 0}, M_PIf * 2 * sigma, M_PI_4f});
+        source = pageable_vector<real>(source.size());
+        ps::get_dipole_fan_source(source.data(), xsize, ysize, {{0.5f + 0.5f * sigma, 0.5f, 0, 0}, M_PIf * 2 * sigma, M_PI_4f});
         display(create_ndarray_from_vector(source, {xsize, ysize}));
     }
 }
 void test_quadratic_fan_source(int xsize, int ysize, int test_count, TDisplay& display)
 {
-    pageable_vector<OLreal> source(xsize * ysize);
-    std::vector<OLreal> test(test_count);
+    pageable_vector<real> source(xsize * ysize);
+    std::vector<real> test(test_count);
     std::iota(test.begin(), test.end(), 0);
     for(auto sigma : test){
         sigma /= test_count;
-        source = pageable_vector<OLreal>(source.size());
-        get_quadratic_fan_source(source.data(), xsize, ysize, {{0.5f + 0.5f * sigma, 0.5f, 0, 0}, M_PIf * sigma, M_PI_4f});
+        source = pageable_vector<real>(source.size());
+        ps::get_quadratic_fan_source(source.data(), xsize, ysize, {{0.5f + 0.5f * sigma, 0.5f, 0, 0}, M_PIf * sigma, M_PI_4f});
         display(create_ndarray_from_vector(source, {xsize, ysize}));
     }
 }
 void test_dipole_leaf_source(int xsize, int ysize, int test_count, TDisplay& display)
 {
-    pageable_vector<OLreal> source(xsize * ysize);
-    std::vector<OLreal> test(test_count);
+    pageable_vector<real> source(xsize * ysize);
+    std::vector<real> test(test_count);
     std::iota(test.begin(), test.end(), 0);
     for(auto sigma : test){
         sigma /= test_count;
-        source = pageable_vector<OLreal>(source.size());
-        get_dipole_leaf_source(source.data(), xsize, ysize, {0.2f + 0.8f * sigma, 0.3f + 0.7f * sigma, 0, 0, 0});
+        source = pageable_vector<real>(source.size());
+        ps::get_dipole_leaf_source(source.data(), xsize, ysize, {0.2f + 0.8f * sigma, 0.3f + 0.7f * sigma, 0, 0, 0});
         display(create_ndarray_from_vector(source, {xsize, ysize}));
     }
 }
 void test_quadratic_leaf_source(int xsize, int ysize, int test_count, TDisplay& display)
 {
-    pageable_vector<OLreal> source(xsize * ysize);
-    std::vector<OLreal> test(test_count);
+    pageable_vector<real> source(xsize * ysize);
+    std::vector<real> test(test_count);
     std::iota(test.begin(), test.end(), 0);
     for(auto sigma : test){
         sigma /= test_count;
-        source = pageable_vector<OLreal>(source.size());
-        get_quadratic_leaf_source(source.data(), xsize, ysize, {{sigma, 0.7f, 0, 0, 0}, 0.2f});
+        source = pageable_vector<real>(source.size());
+        ps::get_quadratic_leaf_source(source.data(), xsize, ysize, {{sigma, 0.7f, 0, 0, 0}, 0.2f});
         display(create_ndarray_from_vector(source, {xsize, ysize}));
     }
     for(auto sigma : test){
         sigma /= test_count;
-        source = pageable_vector<OLreal>(source.size());
-        get_quadratic_leaf_source(source.data(), xsize, ysize, {{0.5f, sigma, 0, 0, 0}, 0.2f});
+        source = pageable_vector<real>(source.size());
+        ps::get_quadratic_leaf_source(source.data(), xsize, ysize, {{0.5f, sigma, 0, 0, 0}, 0.2f});
         display(create_ndarray_from_vector(source, {xsize, ysize}));
     }
     for(auto sigma : test){
         sigma /= test_count;
-        source = pageable_vector<OLreal>(source.size());
-        get_quadratic_leaf_source(source.data(), xsize, ysize, {{0.5f, 0.7f, 0, 0, 0}, sigma});
+        source = pageable_vector<real>(source.size());
+        ps::get_quadratic_leaf_source(source.data(), xsize, ysize, {{0.5f, 0.7f, 0, 0, 0}, sigma});
         display(create_ndarray_from_vector(source, {xsize, ysize}));
     }
 }

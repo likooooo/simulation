@@ -4,7 +4,10 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from math import pow
 from scipy.constants import epsilon_0
-from visualizer import display_image
+
+import sys
+sys.path.append('/usr/local/bin') 
+from visualizer import *
 
 def E(q, r0, r1, k = 1/ (4 * np.pi * epsilon_0)):
     r_diff = r1 - r0
@@ -45,8 +48,7 @@ def electric_potential(x, y, charges):
     for charge in charges:
         delta_U  = U(charge[0], charge[1 : len(charge)],r1)
         U_array += delta_U
-    print(U_array.shape)
-    display_image(U_array)
+    plot_surface(X, Y, U_array)
     Ey, Ex = np.gradient(-U_array)
     return Ex, Ey
 def plot_stream(charges, Ex, Ey, x, y, xrange, yrange):
@@ -100,9 +102,10 @@ if __name__ == "__main__":
     parser.add_argument("--end", nargs="+", type=float, default=[ux, uy])
     parser.add_argument("--grid", nargs="+", type=int, default=[nx, ny])
     parser.add_argument("--n", type=int, default=nq)
+    parser.add_argument("--case", type=int, default=0)
     args = parser.parse_args() 
     nx, ny = args.grid[0:2] 
     lx, ly = args.start[0:2] 
     ux, uy = args.end[0:2] 
     nq = args.n
-    case1()
+    [case0, case1][args.case]()

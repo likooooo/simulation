@@ -1,7 +1,8 @@
-
-# add_executable(diffusion_simulate fluid_simulate.cu)
-# target_include_directories(diffusion_simulate PUBLIC cpp_cuda::cpp_cuda)
-# target_link_libraries(diffusion_simulate PUBLIC cpp_cuda::cpp_cuda)
-
-add_executable(test_source test_source.cpp)
-target_link_libraries(test_source PUBLIC cpp_cuda::cpp_cuda)
+file(GLOB tests ${CMAKE_CURRENT_LIST_DIR}/test_*.cpp)
+foreach(test IN LISTS tests)
+    get_filename_component(test_WLE ${test} NAME_WLE)
+    add_executable(${test_WLE} ${test})
+    target_link_libraries(${test_WLE} PUBLIC cpp_cuda::cpp_cuda)
+    set_target_properties(${test_WLE} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}) 
+    copy_visualizer_files(${test_WLE} "$<TARGET_FILE_DIR:${test_WLE}>")
+endforeach()
