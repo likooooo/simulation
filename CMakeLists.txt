@@ -4,6 +4,8 @@ project(simulation
     HOMEPAGE_URL "https://github.com/likooooo/simulation"
     LANGUAGES CXX CUDA
 )
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(cpp_cuda REQUIRED)
 find_package(py_visualizer REQUIRED)
 include_directories(include)
