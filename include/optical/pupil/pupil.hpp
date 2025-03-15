@@ -1,8 +1,9 @@
 #pragma once
 #include <type_traist_notebook/type_traist.hpp>
 #include "film_stack_solver.hpp"
+#include <kernels/kernel_loop.hpp>
 
-template<class T> struct pupil
+template<class T> struct pupil_radial
 {
 private:
     static std::vector<T> make_kr(T NA, int numPoints)
@@ -15,6 +16,7 @@ private:
     }
 public:
     using cT = complex_t<T>;
+    using rT = real_t<T>;
     constexpr static cT vacuum_nk{T(1)};
     static std::vector<matrix2x3<cT>> init_anamorphic_pupil_radial(int numPoints, T NA, cT nI)
     {
@@ -71,4 +73,27 @@ public:
             p.at(1) = solver.solve_field(p.at(1), E_transfer_matrix.at(0).at(0), E_at_depth, B_at_depth, B_at_depth);
         }
     }
+
+    static std::vector<matrix2x3<cT>> to_image(const std::vector<matrix2x3<cT>>& r, vec2<size_t> shape, rT NA)
+    {
+        std::vector<matrix2x3<cT>> image(shape.at(0) * shape.at(1));
+        
+        matrix2x3<cT>* p = image.data();
+        rT square_NA = NA * NA;
+        kernels::center_zero_loop_square_r(shape, {rT(1) / shape.at(1), rT(1)/ shape.at(0)}, [&](std::array<rT, 2> indexs, rT square_r){
+            if(square_r < square_NA)
+            {
+                // *p = 
+            }
+            else
+            {
+                *p = {0};
+            }
+            p++;
+        });
+        return image;
+    }
 };
+
+// freq-shift
+//

@@ -6,12 +6,12 @@
 
 template<class T> struct test
 {
-    using pupil_print = debug_print<pupil<T>>;
+    using pupil_print = debug_print<pupil_radial<T>>;
     using cT = complex_t<T>;
     using rT = real_t<T>;
     using meterial = typename film_stack_solver<T>::meterial;
 
-    constexpr static auto vacuum_nk = pupil<T>::vacuum_nk;
+    constexpr static auto vacuum_nk = pupil_radial<T>::vacuum_nk;
     T NA = 0.5, lambda = 13.5;
     pycallback_update_frame display = py_plot::create_callback_simulation_fram_done();
     test()
@@ -37,12 +37,12 @@ template<class T> struct test
             pupil_print("\n\n");
         };
         
-        std::vector<matrix2x3<complex_t<T>>> pupil_radials = pupil<T>::init_anamorphic_pupil_radial(5, NA, vacuum_nk);
-        print_radials("* init pupil", pupil_radials);
-        pupil<T>::apply_defocus_to_pupil_radial(pupil_radials, vacuum_nk, lambda / 4, NA, lambda);
+        std::vector<matrix2x3<complex_t<T>>> pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(5, NA, vacuum_nk);
+        print_radials("* init pupil_radial", pupil_radials);
+        pupil_radial<T>::apply_defocus_to_pupil_radial(pupil_radials, vacuum_nk, lambda / 4, NA, lambda);
         print_radials("* defocus", pupil_radials);
 
-        pupil<T>::apply_obliquity_factor_to_pupil_radial(pupil_radials, NA, 
+        pupil_radial<T>::apply_obliquity_factor_to_pupil_radial(pupil_radials, NA, 
             T(1.0 / NA * (1.0 + 1.0 / pupil_radials.size())),   // 增大放大倍率，使得部分高频信息丢失
             vacuum_nk.real()                                    // 增大背景的折射率，增加衰减项
         );
@@ -61,8 +61,8 @@ template<class T> struct test
         std::vector<rT> wave(N);
         for(size_t i = 0; i < N; i++)
         {
-            pupil_radials = pupil<T>::init_anamorphic_pupil_radial(5, NA, vacuum_nk);
-            pupil<T>::apply_film_stack_to_pupil_radial(pupil_radials, NA, lambda, vacuum_nk, 
+            pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(5, NA, vacuum_nk);
+            pupil_radial<T>::apply_film_stack_to_pupil_radial(pupil_radials, NA, lambda, vacuum_nk, 
                 step * i, meterials);
             wave.at(i) = pupil_radials.at(0).at(0)[1].real();
             // wave.at(i) = std::abs(pupil_radials.at(0).at(0)[1]);

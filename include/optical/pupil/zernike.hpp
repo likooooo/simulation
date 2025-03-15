@@ -1,5 +1,6 @@
 #pragma once
 #include <type_traist_notebook/type_traist.hpp>
+#include <optical/polynomials.hpp>
 
 template<class T, size_t M = 4> struct zernike_radial_table
 {
@@ -39,28 +40,38 @@ template<class T, size_t M = 4> struct zernike_radial_table
         norm_all();
     }
 
-    // radial solveM0(std::vector<cT>& pupil_radial, const std::vector<std::tuple<size_t, size_t, T>>& poly_coefs) const
-    // {
-    //     radial weights{0};
-    //     for(const auto [m, l, coef] : poly_coefs){
-    //         if(0 != m || 0 == coef) continue;
-    //         if(l >= zk_matrix.at(m).size()){
-    //             auto type_str = TypeReflection<decltype(*this)>;
-    //             auto L_str = to_string(L);
-    //             debug("%s's L=%s\n", type_str.c_str(), L_str.c_str());
-    //             error(poly_coefs, {"* input args", "m", "l", "coefficients"});
-    //             continue;
-    //         }
-    //         weights += (zk_matrix.at(m).at(l) * coef);
-    //     }
-    //     if(pupil_radial.size() == weights.size()){
-    //         for(size_t i = 0; i < weights.size(); i++){
-    //             pupil_radial.at(i) *= std::exp(cT(0, 1) * weights.at(i));
-    //         }
-    //     }
-    //     return weights;
-    // }
+    radial apply_aberration_m0_to_pupil(std::vector<cT>& pupil_radial, const std::vector<std::tuple<size_t, size_t, T>>& poly_coefs) const
+    {
+        radial weights{0};
+        for(const auto [m, l, coef] : poly_coefs){
+            if(0 != m || 0 == coef) continue;
+            if(l >= L.at(m).size()){
+                auto type_str = TypeReflection<decltype(*this)>;
+                auto L_str = to_string(L);
+                debug("%s's L=%s\n", type_str.c_str(), L_str.c_str());
+                error(poly_coefs, {"* input args", "m", "l", "coefficients"});
+                continue;
+            }
+            weights += (zk_radials.at(index(m, l)) * coef);
+        }
+        if(pupil_radial.size() == weights.size()){
+            for(size_t i = 0; i < pupil_radial.size(); i++){
+                pupil_radial.at(i) *= std::exp(cT(0, 1) * weights.at(i));
+            }
+        }
+        else{
+            rT step = rT(weights.size()) /  rT(pupil_radial.size());
+            for(size_t i = 0; i < pupil_radial.size(); i++){
+                pupil_radial.at(i) *= std::exp(cT(0, 1) * cubic_interpolate<T>::eval(step * i, weights));
+            }
+        }
+        return weights;
+    }
 
+    constexpr static rT theta(size_t m, rT fx, rT fy)
+    {
+        return m * std::atan2(fy, fx);
+    }
 private:
     constexpr void init_L0()
     {
@@ -71,7 +82,7 @@ private:
             for(auto& r : v) r = std::pow(r, m);
         }
     }    
-    void init_L1()
+    constexpr void init_L1()
     {
         for(size_t m = 0; m <= M - 2; m++){
             radial& m0 = zk_radials.at(index(m, 0));
@@ -80,7 +91,7 @@ private:
             m1 = p0 * (m + 2) - m0 * (m + 1);
         }
     }
-    void init_rest()
+    constexpr void init_rest()
     {
         radial r(zk_radials.at(0).size());
         std::iota(r.begin(), r.end(), rT(0)); r /= rT(r.size() - 1);
@@ -104,7 +115,7 @@ private:
             n  = ((r * r * k2 + k3) * m1 + m2 * k4) * rK1; 
         }
     }
-    void norm_all()
+    constexpr void norm_all()
     {
         for(size_t m = 0; m <= M; m++)
         for(size_t l = 0; l <= L.at(m); l++){
