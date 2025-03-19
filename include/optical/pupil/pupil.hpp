@@ -1,7 +1,7 @@
 #pragma once
-#include <type_traist_notebook/type_traist.hpp>
 #include "film_stack_solver.hpp"
-#include <kernels/kernel_loop.hpp>
+#include "jones_pupil.hpp"
+#include "zernike.hpp"
 
 template<class T> struct pupil_radial
 {

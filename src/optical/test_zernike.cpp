@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
         }
     }
     size_t xsize = 100, ysize = 100;
-    std::vector<std::pair<vec2<size_t>, std::vector<float>>> images;
+    std::vector<std::pair<vec2<size_t>, std::vector<complex_t<float>>>> images;
     images.reserve(zernike.size_M * zernike.size_M);
     float step = float(2 * zernike.zk_radials.front().size()) / xsize;
     complex_t<float> center{xsize/2.0f, ysize/2.0f};
@@ -25,30 +25,16 @@ int main(int argc, char *argv[])
     {
         for(size_t l = 0; l <= zernike.L.at(m); l++, i++)
         {
-            if(m){
-                images.push_back(std::make_pair(vec2<size_t>{m,l}, std::vector<float>(xsize * ysize)));
-                images.push_back(std::make_pair(vec2<size_t>{m,l}, std::vector<float>(xsize * ysize)));
-            }
-            else{
-                images.push_back(std::make_pair(vec2<size_t>{m,l}, std::vector<float>(xsize * ysize)));
-            }
-            float* pCos = images.back().second.data();
-            float* pSin = m ?  (images.rbegin() + 1)->second.data() : nullptr;
+            images.push_back(std::make_pair(vec2<size_t>{m,l}, std::vector<complex_t<float>>(xsize * ysize)));
+            complex_t<float>* pData = images.back().second.data();
             kernels::center_zero_loop_square_r<float, 2>({ysize, xsize}, {step, step}, [&](const std::array<float, 2> pos, float r){
                 r = std::sqrt(r);
                 if(r < zernike.zk_radials.at(i).size()){
                     float rVal = cubic_interpolate<float>::eval(r, zernike.zk_radials.at(i));
-                    float theta = zk_table::theta(m,pos[0], pos[1]);
-                    if(m){
-                        *pCos = rVal * std::cos(theta);
-                        *pSin = rVal * std::sin(theta);
-                    }
-                    else{
-                        *pCos = rVal;
-                    }
+                    float theta = zk_table::theta(m, pos[0], pos[1]);
+                    *pData = std::exp(complex_t<float>(0, theta)) * rVal;
                 }
-                pCos++;
-                pSin++;
+                pData++;
             });
         }
     }
@@ -67,12 +53,13 @@ int main(int argc, char *argv[])
             select_l =  argv[i][0] - '0';
         }
     }
-    std::cout << std::make_tuple(select_m, select_l) <<std::endl;
     for(const auto& [info, im] : images)
     {
         auto [m, l] = info;
         if(!((l == select_l || select_l == -1) && (m == select_m || select_m == -1))) continue;
         std::cout << "Z(m,l)=" << info << std::endl;
-        imshow(im, {ysize, xsize});
+        std::vector<float> temp(im.size());
+        std::transform(im.begin(), im.end(), temp.begin(),[](complex_t<float> c){return c.real();});
+        imshow(temp, {ysize, xsize});
     }
 }

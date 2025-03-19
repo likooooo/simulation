@@ -89,8 +89,29 @@ void test_quadratic_leaf_source(int xsize, int ysize, int test_count, TDisplay& 
         display(create_ndarray_from_vector(source, {xsize, ysize}));
     }
 }
+void test_source_point_shift()
+{
+    using src = source<float>;
+    using row1 = std::tuple<float, float, matrix3x3<float>>;
+    std::vector<row1> rotate_matrixs;
+    for(float crao : {0.0, 0.25, 0.5})
+    for(float azimuth : {0.0, 0.25, 0.5, 0.75, 1.0})
+        rotate_matrixs.push_back(row1(crao, azimuth, src::rotate_matrix(crao*M_PI, azimuth * M_PI)));
+    print_table(rotate_matrixs, {"crao(PI)", "azimuth(PI)", "rotate-matrix"}, 1024);
+    vec2<size_t> shape{2, 2};
+    std::vector<float> srcimage(shape[0] * shape[1], 1);
+    for(float crao : {0.0, 0.25})
+    for(float azimuth : {0.0, 0.25})
+    {
+        auto sp = src::get_source_points(srcimage.data(), shape, vec2<float>{1, 1} / shape, 1e-6, crao*M_PI, azimuth * M_PI);
+        std::cout << "crao(PI), azimuth(PI) = " << std::make_tuple(crao, azimuth) << std::endl;
+        print_table(reinterpret_cast<std::vector<src::source_point::print_type>&>(sp), {"kr", "sigma", "intensity"}, 1024);
+    }
+    exit(0);       
+}
 int main()
 {
+    test_source_point_shift();
     py_loader::init();
     py_plot::get_default_visualizer_dir() = "/usr/local/bin";
     auto callback = py_plot::create_callback_simulation_fram_done(py::object(overload_click));
