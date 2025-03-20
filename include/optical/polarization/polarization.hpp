@@ -4,9 +4,6 @@
 #include <optical/polynomials.hpp>
 #include <assert.h>
 
-template<class T>
-using dual_vec = vec2<T>;
-
 enum class polar_type
 {
     X, Y, XY, TE, TM, LINEAR, UNPOLARIZED
