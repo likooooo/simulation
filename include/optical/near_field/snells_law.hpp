@@ -5,7 +5,11 @@ template<class T>
 struct snells_law
 {
     using cT = complex_t<T>;
-    constexpr static cT refraction_angle(cT n1, cT n2, cT input = 0_PI){ std::asin(n1 * std::sin(input) / n2); }
+    constexpr static cT refraction_angle(cT n1, cT n2, cT input = 0_PI)
+    { 
+        assert(0 <= input.real() && input.real() <= real_t<T>(0.5_PI));
+        return std::asin(n1 * std::sin(input) / n2); 
+    }
     constexpr static std::vector<cT> refraction_angle(const std::vector<cT> nk, cT input = 0_PI)
     { 
         std::vector<cT> results(nk.size());results.at(0) = input;

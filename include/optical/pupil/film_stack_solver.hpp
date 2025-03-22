@@ -137,3 +137,5 @@ template<class rT>struct film_stack_solver{
         return in * conj(e_top) * e_at_depth + in * conj(b_top) * b_at_depth;
     }
 };
+using meterialf =  typename film_stack_solver<float>::meterial;
+using meteriald =  typename film_stack_solver<double>::meterial;

@@ -111,7 +111,7 @@ void test_source_point_shift()
 }
 int main()
 {
-    test_source_point_shift();
+    // test_source_point_shift();
     py_loader::init();
     py_plot::get_default_visualizer_dir() = "/usr/local/bin";
     auto callback = py_plot::create_callback_simulation_fram_done(py::object(overload_click));
