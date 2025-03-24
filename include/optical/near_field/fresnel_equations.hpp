@@ -2,13 +2,16 @@
 #include <type_traist_notebook/type_traist.hpp>
 #include "snells_law.hpp"
 
-template<class T, char polarization = 's'>
-struct fresnel_equations
+//== proof of s components :  https://en.wikipedia.org/wiki/Fresnel_equations#s_components
+//   proof of p components :  https://en.wikipedia.org/wiki/Fresnel_equations#p_components
+template<class T, char polarization = 's'> struct fresnel_equations
 {
     using rT = real_t<T>;
     using cT = complex_t<T>;
     using snell = snells_law<T>;
-    constexpr static cT refraction_coef(cT n1, cT theta1, cT n2, cT theta2)
+    // E_input + E_refrecton = E_transmission
+    // H_input * cos(theta_input) - H_refrecton * cos(theta_input) = H_transmission * cos(theta_transmission)
+    constexpr static cT refrection_coef(cT n1, cT theta1, cT n2, cT theta2)
     {
         using std::cos;
         if constexpr(polarization == 's')
@@ -40,7 +43,7 @@ struct fresnel_equations
             unreachable_constexpr_if<int>{};
         }
     }
-    constexpr static cT refraction_coef(cT n1, cT theta1, cT n2){return refraction_coef(n1, theta1, n2, snells_law(n1, n2, theta1));}
+    constexpr static cT refrection_coef(cT n1, cT theta1, cT n2){return refrection_coef(n1, theta1, n2, snells_law(n1, n2, theta1));}
     constexpr static cT transmission_coef(cT n1, cT theta1, cT n2){return transmission_coef(n1, theta1, n2, snells_law(n1, n2, theta1));}
     constexpr static rT reflected_power(cT r){ return std::norm(r); }
     constexpr static rT transmitted_power(cT t, cT n1, cT theta1, cT n2, cT theta2)
@@ -59,4 +62,38 @@ struct fresnel_equations
             unreachable_constexpr_if<int>{};
         }
     }
+    //== https://en.wikipedia.org/wiki/Fresnel_equations#Complex_amplitude_reflection_and_transmission_coefficients
+    constexpr static bool check_refrection_transmission(cT r, cT t, complex_t<T> n1, complex_t<T> n2, rT eps = 1e-6)
+    {
+        if constexpr(polarization == 's')
+        {
+            return std::abs(cT(1) + r - t) < eps;
+        }
+        else if constexpr(polarization == 'p')
+        {
+            return std::abs(cT(1) + r - (n2 / n1 * t)) < eps;
+
+        }
+    }
+    constexpr static bool check_power_refrection_transmission(cT r_power, cT t_power, rT eps = 1e-6)
+    {
+        // 1 = R + T;
+        // std::cout << std::make_tuple(r_power, t_power, std::abs(r_power + t_power - cT(1))) << std::endl;
+        return std::abs(r_power + t_power - cT(1)) < eps;
+    }
 };
+// == https://en.wikipedia.org/wiki/Schlick%27s_approximation
+template<class T> constexpr static inline complex_t<T> fast_refrection_unpolarized(T theta, complex_t<T> n1, complex_t<T> n2)
+{
+    complex_t<T> R0 = std::pow((n1-n2)/(n1 + n2), 2);
+    return R0 + (1 - R0) * std::pow(1- std::cos(theta), 5);
+}
+template<class T> constexpr static inline std::tuple<bool, complex_t<T>> is_total_inner_reflection(complex_t<T> theta_in, complex_t<T> n1, complex_t<T> n2)
+{
+	assert(0 <= std::abs(theta_in) && std::abs(theta_in) <= 0.5_PI);
+	if(std::norm(n1) <= std::norm(n2)){
+        return {false, complex_t<T>(NAN)};
+    }
+	complex_t<T> critical_angle = std::asin(std::sin(0.5_PI) * n2/n1);
+	return {true, critical_angle};
+}

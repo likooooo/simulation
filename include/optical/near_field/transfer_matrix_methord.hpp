@@ -29,7 +29,7 @@ template<class T, char polarization> struct transfer_matrix_method
                 nk.at(i).nk,     propagate_dir.at(i),
                 nk.at(i + 1).nk, propagate_dir.at(i + 1)
             );
-            cT r = fresnel::refraction_coef(
+            cT r = fresnel::refrection_coef(
                 nk.at(i).nk,     propagate_dir.at(i),
                 nk.at(i + 1).nk, propagate_dir.at(i + 1)
             );
@@ -49,9 +49,14 @@ template<class T, char polarization> struct transfer_matrix_method
         return phase;
     }
 
+    constexpr static vec2<cT> get_r_t_from_tmm(const matrix2x2<cT>& m)
+    {
+        return {m[1][0] / m[0][0], cT(1)/m[0][0]}; 
+    }
     constexpr static vec2<rT> get_r_t_power_from_tmm(const matrix2x2<cT>& m, cT n1, cT theta1, cT n2, cT theta2)
     {
-        return {fresnel::reflected_power(m[1][0] / m[0][0]), fresnel::transmitted_power(cT(1)/m[0][0], n1, theta1, n2, theta2)}; 
+        const auto [r, t] = get_r_t_from_tmm(m);
+        return {fresnel::reflected_power(r), fresnel::transmitted_power(t, n1, theta1, n2, theta2)}; 
     }
 
 };

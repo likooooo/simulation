@@ -1,8 +1,8 @@
 #pragma once
 #include <type_traist_notebook/type_traist.hpp>
 
-template<class T>
-struct snells_law
+//== proof : https://en.wikipedia.org/wiki/Fresnel_equations#Wave_vectors
+template<class T> struct snells_law
 {
     using cT = complex_t<T>;
     constexpr static cT refraction_angle(cT n1, cT n2, cT input = 0_PI)

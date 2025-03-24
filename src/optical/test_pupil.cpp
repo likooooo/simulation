@@ -97,7 +97,7 @@ template<class T> struct test
         T expected_r_te = std::abs((meterials[2].nk - meterials[1].nk) / (meterials[2].nk + meterials[1].nk));
         auto eps = std::sqrt(vector_norm(te_matrix[1][1])) - expected_r_te;
         assert(std::abs(eps) < 1e-6);
-        printf("    test success. refelection is same behavior with Fresnel-Formula\n");
+        printf("    test success. reflection is same behavior with Fresnel-Formula\n");
 
         //== 菲涅尔透射
         T expected_t_te = std::abs(T(2) * meterials[1].nk / (meterials[2].nk + meterials[1].nk));
@@ -116,14 +116,14 @@ template<class T> struct test
         {
             auto input_energe = std::sqrt(vector_norm(m[1][0]));
             auto transmition_of_substrate_energe = std::sqrt(vector_norm(m[2][0]));
-            auto refelection_of_substrate_energe = std::sqrt(vector_norm(m[1][1]));
-            // std::cout << std::make_tuple(input_energe - refelection_of_substrate_energe - transmition_of_substrate_energe, 
-            //     input_energe, transmition_of_substrate_energe, refelection_of_substrate_energe) << std::endl;
+            auto reflection_of_substrate_energe = std::sqrt(vector_norm(m[1][1]));
+            // std::cout << std::make_tuple(input_energe - reflection_of_substrate_energe - transmition_of_substrate_energe, 
+            //     input_energe, transmition_of_substrate_energe, reflection_of_substrate_energe) << std::endl;
             if(input_energe > transmition_of_substrate_energe){
-                assert(is_almost_equal<T>(input_energe, transmition_of_substrate_energe + refelection_of_substrate_energe, 1e-5));
+                assert(is_almost_equal<T>(input_energe, transmition_of_substrate_energe + reflection_of_substrate_energe, 1e-5));
             }
             else{
-                assert(is_almost_equal<T>(input_energe, transmition_of_substrate_energe - refelection_of_substrate_energe, 1e-5));
+                assert(is_almost_equal<T>(input_energe, transmition_of_substrate_energe - reflection_of_substrate_energe, 1e-5));
             }
             assert(is_almost_equal<T>(input_energe, 1, 1e-6));
             printf("    test success. %s conservation of energy.\n", s.c_str());
