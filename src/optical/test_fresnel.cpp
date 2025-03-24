@@ -55,8 +55,10 @@ void fresnel_test(const std::string& name, const std::vector<meterialf>& nk, flo
     auto it_min = std::min_element(rp_power.begin(), rp_power.end());
     float brewster_angle = 90.f/(N - 1) * std::distance(rp_power.begin(), it_min);
     std::cout <<"    brewster's angle = " << brewster_angle << "°" << " at Rp_power = " << *it_min << std::endl;
+    float brewster_angle_analytic_solution = TMM_TMf::fresnel::snell::brewster_angle(nk.at(0).nk, nk.at(1).nk) / 1_PI * 180;
+    std::cout <<"    brewster's angle(analytic solution) = " << brewster_angle_analytic_solution << "°" << std::endl;
+    assert(is_almost_equal(brewster_angle,  brewster_angle_analytic_solution, 0.09f));
 
-    
     auto it_critical_angle = std::find_if(rp_power.begin(), rp_power.end(), [assert_eps](float rp){return 1.0f - rp < assert_eps;});
     if(rp_power.end() != it_critical_angle)
     {
