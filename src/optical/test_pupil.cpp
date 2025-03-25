@@ -1,7 +1,6 @@
 #include <optical/pupil/pupil.hpp>
 #include <assert.h>
 #include <random>
-#include <cuda_test_common.hpp>
 #include <py_helper.hpp>
 
 template<class T> struct test
