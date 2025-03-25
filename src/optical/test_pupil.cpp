@@ -48,11 +48,11 @@ template<class T> struct test
         print_radials("* obliquity", pupil_radials);
 
         std::vector<meterial> meterials = {
-            meterial{1.0, 0},                               //background
-            meterial{1.0, lambda},                          // top
-            meterial{complex_t<T>(0.926, 0.044), lambda},   // absorber
-            meterial{1.0, lambda},                          // substrate
-            meterial{1.0, lambda},                          // substrate
+            meterial{1.0, 0},                                  // background
+            meterial{1.0, lambda*10},                          // top
+            meterial{complex_t<T>(0.926, 0.044), lambda * 10}, // absorber
+            meterial{1.0, lambda*10},                          // substrate
+            meterial{1.0, 0},                                  // substrate
         };
         T depth = std::accumulate(meterials.begin(), meterials.end() - 1, T(0), [](T sum, meterial t){return sum + t.depth;});
         size_t N = 1024;
@@ -69,8 +69,8 @@ template<class T> struct test
         }
         meterial::print(meterials) << std::endl;
         printf("After passing through the absorption layer, the energy attenuation is observed...\n");
-        while (display(create_ndarray_from_vector(wave, {(int)wave.size(), 1})));        
         printf("\n");
+        plot_curves(std::vector<std::vector<rT>>{wave}, {0}, {float(step)}, {"wave"}, {"b--"});  
     }
 
     void test_single_layer() {
