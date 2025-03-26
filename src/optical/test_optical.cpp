@@ -1,9 +1,20 @@
 
 #include <optical/optical_numerics.hpp>
+
+template<class T>void sim_config_test()
+{
+    T sigma = 0;
+    T maxNA = 0.5 + sigma;
+    T lambda = 13.5;
+    vec2<T> from{0, -200};
+    vec2<T> to{400, 200};
+    vec2<T> ambit{0, 0};
+    vec2<size_t> tilesize{160, 160};
+    optical_numerics({from, to}, ambit, tilesize, maxNA, lambda).print();
+    bloch_optical_numerics({from, to}, tilesize, maxNA, lambda).print();
+}
 int main()
 {
-    optical_numerics<float>(
-        vec2<vec2<float>>{vec2<float>{0.f, 0.f}, vec2<float>{100.f, 100.f}}, 
-        vec2<float>{1.f, 1.f}, vec2<size_t>{10, 10}, 0.8, 13.5
-    ).print();
+    sim_config_test<float>();
+    // sim_config_test<double>();
 }
