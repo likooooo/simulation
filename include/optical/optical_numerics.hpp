@@ -1,12 +1,12 @@
 #pragma once
 #include <type_traist_notebook/type_traist.hpp>
 
-template<class T>
+template<class T, size_t DIM=2>
 struct grid_start_step
 {
-    struct StartStep{vec2<T> start, step;};
+    struct StartStep{vec<T, DIM> start, step;};
     StartStep spatial, fourier;
-    vec2<size_t> tilesize;
+    vec<size_t, DIM> tilesize;
     void print() const
     {
         std::vector<std::tuple<std::string, vec2<T>>> msg{
@@ -16,6 +16,18 @@ struct grid_start_step
             std::make_tuple(std::string("fourier step  :"), fourier.step), 
         };
         print_table(msg, {"* optical numerics with tilesize=" + to_string(tilesize), ""});
+    }
+    template<size_t N> grid_start_step<T, N> change_dim()
+    {
+        grid_start_step<T, N> meta{0};
+        for(size_t i = 0; i < DIM; i++){
+            meta.tilesize[i] = tilesize[i];
+            meta.spatial.start[i] = spatial.start[i];
+            meta.spatial.step[i] = spatial.step[i];
+            meta.fourier.start[i] = fourier.start[i];
+            meta.fourier.step[i] = fourier.step[i];
+        }
+        return meta;
     }
 };
 
