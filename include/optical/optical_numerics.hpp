@@ -30,9 +30,12 @@ struct grid_start_step
         return meta;
     }
 };
+template<class T>using point = vec2<T>;
+template<class T>using rectangle = vec2<point<T>>;
+
 
 constexpr size_t doubling_bandwith_for_squaring_signal_system = 2;
-template<class T> inline grid_start_step<T> optical_numerics(const vec2<vec2<T>>& roi, const vec2<T>& ambit, const vec2<size_t>& tilesize, T maxNA, T lambda)
+template<class T> inline grid_start_step<T> optical_numerics(const rectangle<T>& roi, const vec2<T>& ambit, const vec2<size_t>& tilesize, T maxNA, T lambda)
 {
     grid_start_step<T> grid;
     grid.tilesize = tilesize;
@@ -64,7 +67,7 @@ template<class T> inline grid_start_step<T> optical_numerics(const vec2<vec2<T>>
     grid.fourier.start = vec2<T>{0, 0}; // use DC-corner
     return grid;
 }
-template<class T> inline grid_start_step<T> bloch_optical_numerics(vec2<vec2<T>> spatial_domain, vec2<size_t> tilesize, T maxNA, T lambda)
+template<class T> inline grid_start_step<T> bloch_optical_numerics(rectangle<T> spatial_domain, vec2<size_t> tilesize, T maxNA, T lambda)
 {
     grid_start_step<T> grid;
 

@@ -104,8 +104,7 @@ void fresnel_test(const std::string& name, const std::vector<meterialf>& nk, flo
 
 int main(int argc, char** argv)
 {
-    py_loader::init();
-    py_plot::get_default_visualizer_dir() = "/usr/local/bin";
+    py_engine::init();
     std::vector<meterialf> glass_to_air{
         meterialf{complex_t<float>(1.5, 0), 0},
         meterialf{complex_t<float>(1.0, 0), 0},

@@ -134,8 +134,7 @@ template<class T> struct test
 
 int main()
 {
-    py_loader::init();
-    py_plot::get_default_visualizer_dir() = "/usr/local/bin";
+    py_engine::init();
     test<float> t;
     t.get_anamorphic_pupil();
     for(size_t i = 0; i < 100; i++){

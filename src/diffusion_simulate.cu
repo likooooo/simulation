@@ -130,7 +130,7 @@
 // }
 
 // int main() {
-//     py_loader::init();
+//     py_engine::init();
 //     struct diffusion_input_params {
 //         const real D = 1;     // 扩散系数
 //         const real dx = 0.001;   // 空间步长

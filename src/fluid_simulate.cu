@@ -12,10 +12,9 @@
 //    vterm.y += s * fy;
 //}
 int main() {
-    py_loader::init();
+    py_engine::init();
     int nx = 100, ny = 100;
     cuda::pageable_vector<real> vec(nx * ny);
-    py_plot::get_default_visualizer_dir() = "/usr/local/bin";
     auto callback = py_plot::create_callback_simulation_fram_done(py::object(overload_click));
     while (callback(create_ndarray_from_vector(vec, { nx, ny })));
 }

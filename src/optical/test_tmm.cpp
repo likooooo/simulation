@@ -41,8 +41,7 @@ void reflectance_test(const std::string& name, complex_t<float> target)
 
 int main()
 {
-    py_loader::init();
-    py_plot::get_default_visualizer_dir() = "/usr/local/bin";
+    py_engine::init();
     reflectance_test("SiO2", {1.4649, 0.0017953});   // lambda = 587.6 nm
     reflectance_test("Ta2O5", {2.1306, 0.00091143}); // lambda = 587.6 nm
 }

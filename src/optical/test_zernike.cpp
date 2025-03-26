@@ -39,8 +39,7 @@ int main(int argc, char *argv[])
         }
     }
     std::cout << images.size() << std::endl;
-    py_loader::init();
-    py_plot::get_default_visualizer_dir() = "/usr/local/bin";
+    py_engine::init();
     
     int select_m = -1, select_l = -1;
     for(int i = 1; i < argc; i++){
