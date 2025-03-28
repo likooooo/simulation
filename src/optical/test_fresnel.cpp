@@ -102,9 +102,8 @@ void fresnel_test(const std::string& name, const std::vector<meterialf>& nk, flo
 } 
 
 
-int main(int argc, char** argv)
+void test_fresnel(const std::string& key)
 {
-    py_engine::init();
     std::vector<meterialf> glass_to_air{
         meterialf{complex_t<float>(1.5, 0), 0},
         meterialf{complex_t<float>(1.0, 0), 0},
@@ -117,8 +116,20 @@ int main(int argc, char** argv)
         {"air_to_glass", callback([&](){fresnel_test("fresnel equations(air to glass)", air_to_glass);})},
         {"glass_to_air", callback([&](){fresnel_test("fresnel equations(glass to air)", glass_to_air);})}
     };
-    std::string key = argc == 2 ? std::string(argv[1]) : "glass_to_air";
     auto it_call = callbacks.find(key);
     assert(callbacks.end() != it_call);
     (it_call->second)();   
+}
+int main(int argc, char** argv)
+{
+    py_engine::init();
+    std::string key = argc == 2 ? std::string(argv[1]) : "glass_to_air";
+    test_fresnel(key);
+}
+
+
+BOOST_PYTHON_MODULE(lib_test_fresnel) {
+    py_engine::init();
+    py_engine::init_exception_for_pycall();
+    py::def("test_fresnel", &test_fresnel);
 }

@@ -1,6 +1,5 @@
 #pragma once
 #include <type_traist_notebook/type_traist.hpp>
-#include <optical_numerics.hpp>
 
 template<class Image, class TMeta = grid_start_step<real_t<typename Image::value_type>>> 
 struct init_image

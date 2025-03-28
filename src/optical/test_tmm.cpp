@@ -30,12 +30,12 @@ void reflectance_test(const std::string& name, complex_t<float> target)
     auto display =  py_plot::create_callback_simulation_fram_done();
     size_t max_frame = 50;
     std::cout << "    plot of reflectans (p polarized)\n";
-    for(size_t i = 0; i < max_frame; i++) display(create_ndarray_from_vector(Rp, {1, N}));
+    for(size_t i = 0; i < max_frame; i++) display(create_ndarray_from_vector(Rp, {1, int(N)}));
     std::cout << "    plot of reflectans (s polarized)\n";
-    for(size_t i = 0; i < max_frame; i++) display(create_ndarray_from_vector(Rs, {1, N}));
+    for(size_t i = 0; i < max_frame; i++) display(create_ndarray_from_vector(Rs, {1, int(N)}));
     std::vector<float> non_polarized = (Rp + Rs) * float(0.5);
     std::cout << "    plot of reflectans (non-polarized)\n";
-    for(size_t i = 0; i < max_frame; i++) display(create_ndarray_from_vector(non_polarized, {1, N}));
+    for(size_t i = 0; i < max_frame; i++) display(create_ndarray_from_vector(non_polarized, {1, int(N)}));
     std::cout << name <<" reflectance test success. " << std::endl << std::endl;
 } 
 

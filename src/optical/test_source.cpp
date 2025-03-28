@@ -123,3 +123,34 @@ int main()
     test_dipole_leaf_source(xsize, ysize, frame_count, callback);
     test_quadratic_leaf_source(xsize, ysize, frame_count, callback);
 }   
+
+np::ndarray source_image(const std::string& type, vec2<int> shape, real sigma)
+{
+    std::vector<real> source(shape[0] * shape[1]);
+    if(type == "traditional")
+        ps::get_traditional_source(source.data(), shape[1], shape[0], {sigma, 0, 0});
+    else if(type == "annular")
+        ps::get_annular_source(source.data(), shape[1], shape[0], {1.0, sigma, 0, 0});
+    else if(type == "dipole_fan")
+        ps::get_dipole_fan_source(source.data(), shape[1], shape[0], {{0.5f + 0.5f * sigma, 0.5f, 0, 0}, M_PIf * 2 * sigma, M_PI_4f});
+    else if(type == "quadratic_fan")
+        ps::get_quadratic_fan_source(source.data(), shape[1], shape[0], {{0.5f + 0.5f * sigma, 0.5f, 0, 0}, M_PIf * sigma, M_PI_4f});
+    else if(type == "dipole_leaf")
+        ps::get_dipole_leaf_source(source.data(), shape[1], shape[0], {0.2f + 0.8f * sigma, 0.3f + 0.7f * sigma, 0, 0, 0});
+    else if(type == "quadratic_leaf")
+        ps::get_quadratic_leaf_source(source.data(), shape[1], shape[0], {{sigma, 0.7f, 0, 0, 0}, 0.2f});
+    else if(type == "quadratic_leaf1")
+        ps::get_quadratic_leaf_source(source.data(), shape[1], shape[0], {{0.5f, sigma, 0, 0, 0}, 0.2f});
+    else if(type == "quadratic_leaf2")
+        ps::get_quadratic_leaf_source(source.data(), shape[1], shape[0], {{0.5f, 0.7f, 0, 0, 0}, sigma});
+    else
+        throw std::invalid_argument("invalid sorce type " + type + " with (shape, sigma)=" + to_string(std::make_tuple(shape, sigma)));
+    imshow(source, {shape[0], shape[1]});
+    return create_ndarray_from_vector(source, {shape[0], shape[1]});
+}
+
+BOOST_PYTHON_MODULE(lib_test_source) {
+    py_engine::init();
+    py_engine::init_exception_for_pycall();
+    py::def("source_image", &source_image);
+}

@@ -7,4 +7,9 @@ foreach(test IN LISTS tests)
 
     set_target_properties(${test_WLE} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}) 
     copy_visualizer_files(${test_WLE} ${CMAKE_BINARY_DIR})
+
+    set(test_WLE _${test_WLE})
+    add_library(${test_WLE} SHARED ${test})
+    target_link_libraries(${test_WLE} PUBLIC py_visualizer::py_visualizer)
+    set_target_properties(${test_WLE} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}) 
 endforeach()
