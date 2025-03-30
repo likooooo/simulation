@@ -124,7 +124,7 @@ int main()
     test_quadratic_leaf_source(xsize, ysize, frame_count, callback);
 }   
 
-np::ndarray source_image(const std::string& type, vec2<int> shape, real sigma)
+np::ndarray source_image(const std::string& type, vec2<size_t> shape, real sigma)
 {
     std::vector<real> source(shape[0] * shape[1]);
     if(type == "traditional")

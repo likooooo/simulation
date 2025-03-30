@@ -2,9 +2,12 @@
 #include <optical/optical_numerics.hpp>
 #include <py_helper.hpp>
 
+// template<class T>void optical_numerics_test(rectangle<T> roi={0, -200, 400, 200},
+//     vec2<T> ambit={0, 0}, vec2<size_t> tilesize={160, 160}, 
+//     T maxNA = 0.5, T sigma = 0,  T lambda = 13.5
 template<class T>void optical_numerics_test(rectangle<T> roi={0, -200, 400, 200},
-    vec2<T> ambit={0, 0}, vec2<size_t> tilesize={160, 160}, 
-    T maxNA = 0.5, T sigma = 0,  T lambda = 13.5
+    vec2<T> ambit={0, 0}, vec2<size_t> tilesize={256, 256}, 
+    T maxNA = 1.2, T sigma = 0,  T lambda = 193
 )
 {
     std::cout  << std::endl << "* OPC mode" << std::endl;
