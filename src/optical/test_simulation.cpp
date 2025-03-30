@@ -5,13 +5,18 @@
 #include <optical/geometry.hpp>
 #include <optical/clip.hpp>
 
-void simulation_flow();
+void simulation_flow(const std::string&);
 int main()
 {
     py_engine::init();
     add_path_to_sys_path("core_plugins");
-    simulation_flow();
+    simulation_flow("/home/like/repos/simulation/config/calib_193.py");
     py_engine::dispose();
+}
+BOOST_PYTHON_MODULE(lib_test_simulation) {
+    py_engine::init();
+    py_engine::init_exception_for_pycall();
+    py::def("simulation", &simulation_flow);
 }
 
 std::vector<cutlinei> load_gauge_file(const std::string& path)
@@ -37,7 +42,8 @@ template<class TUserConfig> grid_start_step<double> optical_numerics_in_dbu(cutl
     auto roi = convert<cutlinei, rectangle<double>>{}(cutline);
     dbu_to_um(roi, config.dbu);
     auto grid_in_um = optical_numerics<double>(roi, config.ambit, config.tilesize, config.maxNA, config.wavelength); 
-    // grid_in_um.print();
+    printf("    origin grid-um\n");
+    grid_in_um.print();
 
     //== 1. spatial step
     um_to_dbu(grid_in_um.spatial.step, config.dbu);
@@ -46,7 +52,7 @@ template<class TUserConfig> grid_start_step<double> optical_numerics_in_dbu(cutl
     auto tile_size = convert<vec2<size_t>, vec2<int64_t>>{}(config.tilesize);
     vec2<int64_t> spatial_domain_in_dbu = tile_size * spatial_step_in_dbu;
     const auto& [from_in_dbu, to_in_dbu] = cutline;
-    vec2<int64_t> spatial_start_in_dbu = ((from_in_dbu + to_in_dbu - spatial_step_in_dbu) + 1) / 2; 
+    vec2<int64_t> spatial_start_in_dbu = ((from_in_dbu + to_in_dbu - spatial_domain_in_dbu) + 1) / 2; 
     
     //== check tilesize
     vec2<double> ambit = config.ambit; um_to_dbu(ambit, config.dbu);
@@ -73,21 +79,30 @@ template<class TUserConfig> grid_start_step<double> optical_numerics_in_dbu(cutl
     grid_in_dbu.fourier.step  = vec2<double>{lambda_in_dbu, lambda_in_dbu} / spatial_domain_in_dbu;
     grid_in_dbu.fourier.start = vec2<double>{0, 0}; 
     // grid_in_dbu.print();
+    grid_start_step<double> grid_to_um = grid_in_dbu;
+    dbu_to_um(grid_to_um.spatial.start, config.dbu);
+    dbu_to_um(grid_to_um.spatial.step, config.dbu);
+    printf("    grid-dbu-aligined to grid-um\n");
+    std::cout << "    center of simulation domain is " << 
+        dbu_to_um((startstep_in_dbu.spatial.start + ((startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize) * 0.5)), user_config.dbu) << 
+        " um" << std::endl;
+
+    grid_to_um.print();
     return grid_in_dbu;
 }
 
-void simulation_flow()
+void simulation_flow(const std::string& config_path)
 {
-    auto user_config = cutline_jobs::get_user_config("/home/like/repos/simulation/config/calib_193.py");
+    auto user_config = cutline_jobs::get_user_config(config_path);
+   
     //== load gauge file & calc startstep
     auto cutlines = load_gauge_file(user_config.gauge_file);
     auto startstep_in_dbu = optical_numerics_in_dbu(cutlines.at(0), user_config);
+   
     //== cutline subclip
     auto shape =  (startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize) * user_config.dbu;
-    std::cout << shape << std::endl;
     cutline_jobs jobs = cutline_jobs::cutline_clip_flow(user_config, shape);
     auto path = jobs.clip_path(0);
-
     //== load subclip
     py::tuple poly_and_holes = py_plugin::call<py::tuple>("klayout_op", "load_oas_vertexs", 
         jobs.clip_path(0).c_str(), user_config.cell_name, user_config.layer_id
@@ -97,7 +112,7 @@ void simulation_flow()
     foreach_shape_lines(polys, [](point_dbu from, point_dbu to){
         auto unit = unit_vector(from, to);
         auto norm = norm_vector(from, to);
-        std::cout << from << to << point_in_domain_clamp({0, 0}, from, to)  << std::endl;
+        // std::cout << from << to << point_in_domain_clamp({0, 0}, from, to)  << std::endl;
     });
     
 
