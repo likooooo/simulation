@@ -146,7 +146,7 @@ np::ndarray source_image(const std::string& type, vec2<size_t> shape, real sigma
     else
         throw std::invalid_argument("invalid sorce type " + type + " with (shape, sigma)=" + to_string(std::make_tuple(shape, sigma)));
     imshow(source, {shape[0], shape[1]});
-    return create_ndarray_from_vector(source, {shape[0], shape[1]});
+    return create_ndarray_from_vector(source, {int(shape[0]), int(shape[1])});
 }
 
 BOOST_PYTHON_MODULE(lib_test_source) {

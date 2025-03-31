@@ -4,13 +4,14 @@
 #include <filesystem>
 #include <optical/geometry.hpp>
 #include <optical/clip.hpp>
+#include <optical/near_field/thin_mask.hpp>
 
 void simulation_flow(const std::string&);
 int main()
 {
     py_engine::init();
     add_path_to_sys_path("core_plugins");
-    simulation_flow("/home/like/repos/simulation/config/calib_193.py");
+    catch_py_error(simulation_flow("/home/like/repos/simulation/config/calib_193.py"));
     py_engine::dispose();
 }
 BOOST_PYTHON_MODULE(lib_test_simulation) {
@@ -19,17 +20,17 @@ BOOST_PYTHON_MODULE(lib_test_simulation) {
     py::def("simulation", &simulation_flow);
 }
 
-std::vector<cutlinei> load_gauge_file(const std::string& path)
+std::vector<cutline_dbu> load_gauge_file(const std::string& path)
 {
     // read_gauge_file
-    py::list_tuple gauge_table = py::extract<py::list_tuple>(py_plugin::ref()["gauge_io"]["read_gauge_file"](path));
-    np::array2df cutlines_in_um = py::extract<np::array2df>(py_plugin::ref()["gauge_io"]["get_culine_from_gauge_table"](gauge_table, 1));
+    py::list_tuple gauge_table = convert_to<py::list_tuple>(py_plugin::ref()["gauge_io"]["read_gauge_file"](path));
+    np::array2df cutlines_in_um = convert_to<np::array2df>(py_plugin::ref()["gauge_io"]["get_culine_from_gauge_table"](gauge_table, 1));
     auto [pRec, n] = ndarray_ref_no_padding<vec<double, 4>>(cutlines_in_um);
-    std::vector<cutlinei> cutlines; 
+    std::vector<cutline_dbu> cutlines; 
     cutlines.reserve(n);
     for(size_t i = 0; i < n; i++, pRec++){
         const auto& rec = *pRec;
-        cutlines.push_back(cutlinei{
+        cutlines.push_back(cutline_dbu{
             static_cast<int64_t>(rec[0]), static_cast<int64_t>(rec[1]), 
             static_cast<int64_t>(rec[2]), static_cast<int64_t>(rec[3])}
         );
@@ -37,9 +38,9 @@ std::vector<cutlinei> load_gauge_file(const std::string& path)
     return cutlines;
 }
 
-template<class TUserConfig> grid_start_step<double> optical_numerics_in_dbu(cutlinei cutline, const TUserConfig& config)
+template<class TUserConfig> grid_start_step<double> optical_numerics_in_dbu(cutline_dbu cutline, const TUserConfig& config)
 {
-    auto roi = convert<cutlinei, rectangle<double>>{}(cutline);
+    auto roi = convert<cutline_dbu, rectangle<double>>{}(cutline);
     dbu_to_um(roi, config.dbu);
     auto grid_in_um = optical_numerics<double>(roi, config.ambit, config.tilesize, config.maxNA, config.wavelength); 
     printf("    origin grid-um\n");
@@ -84,7 +85,7 @@ template<class TUserConfig> grid_start_step<double> optical_numerics_in_dbu(cutl
     dbu_to_um(grid_to_um.spatial.step, config.dbu);
     printf("    grid-dbu-aligined to grid-um\n");
     std::cout << "    center of simulation domain is " << 
-        dbu_to_um((startstep_in_dbu.spatial.start + ((startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize) * 0.5)), user_config.dbu) << 
+        dbu_to_um((grid_in_dbu.spatial.start + ((grid_in_dbu.spatial.step * grid_in_dbu.tilesize) * 0.5)), config.dbu) << 
         " um" << std::endl;
 
     grid_to_um.print();
@@ -102,33 +103,7 @@ void simulation_flow(const std::string& config_path)
     //== cutline subclip
     auto shape =  (startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize) * user_config.dbu;
     cutline_jobs jobs = cutline_jobs::cutline_clip_flow(user_config, shape);
-    auto path = jobs.clip_path(0);
     //== load subclip
-    py::tuple poly_and_holes = py_plugin::call<py::tuple>("klayout_op", "load_oas_vertexs", 
-        jobs.clip_path(0).c_str(), user_config.cell_name, user_config.layer_id
-    );
-    np::list_array2d polys = py::extract<np::list_array2d>(poly_and_holes[0]);
-    np::list_array2d holes = py::extract<np::list_array2d>(poly_and_holes[1]);
-    foreach_shape_lines(polys, [](point_dbu from, point_dbu to){
-        auto unit = unit_vector(from, to);
-        auto norm = norm_vector(from, to);
-        // std::cout << from << to << point_in_domain_clamp({0, 0}, from, to)  << std::endl;
-    });
-    
-
-    // std::cout << len(polys) << std::endl;
-    // std::cout << len(holes) << std::endl;
-
-    // np::array2df poly = py::extract<np::array2df>(polys[0]);
-    // auto [pPoly, poly_point_size] = ndarray_ref_no_padding<point_dbu>(poly);
-    // std::cout << "[";
-    // for(size_t i = 0; i < poly_point_size; i++)
-    //     std::cout << pPoly[i] << vec2<const char*>({"\n", "]\n"}).at((i + 1) == poly_point_size);
-
-        
-    // np::array2df hole = py::extract<np::array2df>(holes[0]);
-    // auto [phole, hole_point_size] = ndarray_ref_no_padding<point_dbu>(hole);
-    // std::cout << "[";
-    // for(size_t i = 0; i < hole_point_size; i++)
-    //     std::cout << phole[i] << vec2<const char*>({"\n", "]\n"}).at((i + 1) == hole_point_size);
+    shapes_dbu shapes = near_filed::load_shapes_from_file(jobs.clip_path(0).c_str(), user_config.cell_name, user_config.layer_id);
+    std::cout << shapes << std::endl;
 }

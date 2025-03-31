@@ -3,7 +3,10 @@
 #include <type_traist_notebook/type_traist.hpp>
 
 using point_dbu = vec2<int64_t>;
-using cutlinei = rectangle<int64_t>;
+using cutline_dbu = rectangle<int64_t>;
+using poly_dbu = std::vector<cutline_dbu>;
+using shapes_dbu = std::vector<poly_dbu>;
+
 template<class T, class T1> void dbu_to_um(T& t, T1 dbu){t *= dbu;}
 template<class T, class T1> void um_to_dbu(T& t, T1 dbu){t /= dbu;}
 template<class T, class T1> T dbu_to_um(const T& t, T1 dbu){return t * dbu;}
