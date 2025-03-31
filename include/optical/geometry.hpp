@@ -77,10 +77,14 @@ template<class T, size_t N> vec<T, N> norm_vector(const vec2<vec<T, N>>& line)
 template<class T, size_t N, class PixelFunc, size_t Dim = 0>
 inline void __dissect_loop_impl(const vec2<vec<T, N>>& p, const vec<T, N>& step, PixelFunc&& func, std::array<T, N>& indices) 
 {
+    using namespace numerics_logic;
+    assert(step > 0);
     const auto&[from, to] = p;
     if constexpr (Dim < N) 
     {
-        for (indices[Dim] = from[Dim]; indices[Dim] <= to[Dim]; indices[Dim] += step[Dim]) 
+        T lb = std::min(from[Dim], to[Dim]);
+        T ub = std::max(from[Dim], to[Dim]);
+        for (indices[Dim] = lb; indices[Dim] <= ub; indices[Dim] += step[Dim]) 
         {
             __dissect_loop_impl<T, N, PixelFunc, Dim + 1>(p, step, std::forward<PixelFunc>(func), indices);
         }
@@ -114,10 +118,10 @@ template<class T, size_t N> vec<T, N> domain_clamp(vec<T, N> p, const vec<T, N>&
 template<class T, size_t N> bool is_point_inside_domain(const vec<T, N>& p, const vec2<vec<T, N>>& domain)
 {
     const auto& [from, to] = domain;
-    return from <= p && p <= to;
+    return numerics_logic::operator <=(from, p) && numerics_logic::operator >(p, from);
 }
 template<class T, size_t N> bool is_edge_inside_domain(const vec2<vec<T, N>>& p, const vec2<vec<T, N>>& domain)
 {
-    const auto& [p1, p2]   = p;
+    const auto& [p1, p2] = p;
     return is_point_inside_domain(p1, domain) && is_point_inside_domain(p2, domain);
 }

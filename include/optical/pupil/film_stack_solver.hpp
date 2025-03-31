@@ -70,11 +70,11 @@ template<class rT>struct film_stack_solver{
         cT nk; rT depth;
         static std::ostream& print(const std::vector<meterial>& meterials)
         {
-            debug_print<>(
+            debug_unclassified(
                 reinterpret_cast<const std::vector<std::tuple<rT, rT, rT>>&>(meterials),
                 std::array<std::string, 3>{"thickness", "absorption coefficient", "refractive index"}
             );
-            return debug_print<>::print_to();
+            return debug_unclassified::print_to();
         }
     };
     rT lambda, omega;

@@ -6,6 +6,8 @@
 #include <optical/clip.hpp>
 #include <optical/near_field/thin_mask.hpp>
 
+bool verbose = false;
+
 void simulation_flow(const std::string&);
 int main()
 {
@@ -54,7 +56,7 @@ template<class TUserConfig> dbu_grid_start_step<double> optical_numerics_in_dbu(
     auto roi = convert<cutline_dbu, rectangle<double>>{}(cutline);
     dbu_to_um(roi, config.dbu);
     auto grid_in_um = optical_numerics<double>(roi, config.ambit, config.tilesize, config.maxNA, config.wavelength); 
-    if(config.verbose) print_grid_start_step(grid_in_um, "origin grid-um");
+    print_grid_start_step(grid_in_um, "origin grid-um");
 
     //== 1. spatial step
     um_to_dbu(grid_in_um.spatial.step, config.dbu);
@@ -91,7 +93,7 @@ template<class TUserConfig> dbu_grid_start_step<double> optical_numerics_in_dbu(
     grid_in_dbu.fourier.step  = vec2<double>{lambda_in_dbu, lambda_in_dbu} / spatial_domain_in_dbu;
     grid_in_dbu.fourier.start = vec2<double>{0, 0}; 
     
-    if(config.verbose)
+    if(debug_unclassified::verbose())
     {
         grid_start_step<double> grid_to_um;
         grid_to_um.tilesize      = grid_in_dbu.tilesize; 
@@ -108,7 +110,7 @@ template<class TUserConfig> dbu_grid_start_step<double> optical_numerics_in_dbu(
 void simulation_flow(const std::string& config_path)
 {
     auto user_config = cutline_jobs::get_user_config(config_path);
-   
+
     //== load gauge file & calc startstep
     auto cutlines = load_gauge_file(user_config.gauge_file);
     auto startstep_in_dbu = optical_numerics_in_dbu(cutlines.at(0), user_config);
@@ -120,6 +122,6 @@ void simulation_flow(const std::string& config_path)
     //== load subclip
     shapes_dbu shapes = near_filed::load_shapes_from_file(jobs.clip_path(0).c_str(), user_config.cell_name, user_config.layer_id);
     auto [x, y, mask_info] = thin_mask<double, dbu_grid_start_step<double>>::intergral_image(startstep_in_dbu, shapes);
-    // imshow(x, convert_to<std::vector<size_t>>(info.tilesize));
-    // imshow(y, convert_to<std::vector<size_t>>(info.tilesize));
+    imshow(x, convert_to<std::vector<size_t>>(mask_info.tilesize));
+    imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
 }

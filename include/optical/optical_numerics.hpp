@@ -24,7 +24,7 @@ template<class TMeta, size_t N> inline auto change_dim(const TMeta& in)
     }
     return meta;
 }
-template<class TMeta> inline void print_grid_start_step(const TMeta& in, const std::string& tag = "") 
+template<class TMeta, class print_to = debug_unclassified> inline void print_grid_start_step(const TMeta& in, const std::string& tag = "") 
 {
     std::vector<std::tuple<std::string, std::string>> msg{
         std::make_tuple(std::string("tilesize      :"), to_string(in.tilesize)),
@@ -33,7 +33,7 @@ template<class TMeta> inline void print_grid_start_step(const TMeta& in, const s
         std::make_tuple(std::string("fourier start :"), to_string(in.fourier.start)),
         std::make_tuple(std::string("fourier step  :"), to_string(in.fourier.step)), 
     };
-    print_table(msg, {"* " + tag, TypeReflection<TMeta>()});
+    print_to(msg, {"* " + tag, TypeReflection<TMeta>()});
 }
 
 template<class T>using point = vec2<T>;

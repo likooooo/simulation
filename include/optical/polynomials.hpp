@@ -14,19 +14,14 @@ struct lagrange_interpolate
         }
         return coefs;
     }
-    constexpr static std::pair<size_t, std::array<T, N>> interpolate_info(const real_t<T> x, const size_t unit_count){
+    constexpr static std::pair<size_t, std::array<T, N>> interpolate_info(const T x, const size_t unit_count){
         size_t index = std::floor(x);
         index = std::min(index, unit_count -1 - Order);
         return std::make_pair(index, get_coef(x - index));
     } 
     template<class TContainer>constexpr static T eval(const T x, const TContainer& vec){
         auto [index, info] = interpolate_info(x, vec.size());
-        T result;
-        if constexpr(is_real_or_complex_v<T>){
-            result = 0;
-        } else{
-            std::fill(result.begin(), result.end(), 0);
-        }
+        T result = 0;
         for(size_t i = 0; i < N; i++){
             result += vec.at(index + i) * info.at(i);
         }
@@ -42,12 +37,7 @@ private:
     constexpr static T get_Ln_denominator(const size_t n)
     {
         const std::array<T,N> xn = get_xn(n);
-        T Ln;
-        if constexpr(is_real_or_complex_v<T>){
-            Ln = 1;
-        } else{
-            std::fill(Ln.begin(), Ln.end(), 1);
-        }
+        T Ln = 1;
         for(size_t i = 0; i < N; i++){
 	        if(n == i) continue;
             Ln *= xn.at(i);
@@ -57,12 +47,7 @@ private:
     constexpr static T get_Ln_numerator(const T dx, const size_t n)
     {
         const std::array<T, N> xn = get_xn(dx);
-        T Ln;
-        if constexpr(is_real_or_complex_v<T>){
-            Ln = 1;
-        } else{
-            std::fill(Ln.begin(), Ln.end(), 1);
-        }
+        T Ln = 1;
         for(size_t i = 0; i < N; i++){
 	        if(n == i) continue;
             Ln *= xn.at(i);

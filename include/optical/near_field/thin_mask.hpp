@@ -2,6 +2,7 @@
 #include <type_traist_notebook/type_traist.hpp>
 #include <optical/geometry.hpp>
 #include <optical/polynomials.hpp>
+extern bool verbose;
 template<class Image, class MetaData> 
 struct init_image
 {
@@ -44,48 +45,43 @@ template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
     static std::tuple<Image, Image, TMeta> intergral_image(const TMeta& info, const std::vector<poly_dbu>& polys)
     {
         auto [x, mask_info] = init_image<Image, TMeta>{}(info, 8);
+        print_grid_start_step<TMeta, debug_print<thin_mask>>(mask_info, "intergral image");
         auto y = x;
         const auto& start = mask_info.spatial.start;
         const auto& step = mask_info.spatial.step;
-        auto roi = cutline_dbu{start, start + (step * mask_info.tilesize)};
-
-        auto interpolate_to = [&](Image& im, cutline_dbu edge, point_dbu intergral_dir){
-            edge -= roi[0];
-            std::cout << "edge after="<<edge<<std::endl;
-            dissect_loop<point_dbu::value_type, 2>(edge, step, [&](point_dbu current){
-                auto index = convert_to<vec2<size_t>>(floor(current / mask_info.spatial.step));
-                std::cout << index << std::endl;
-            //     if(index >= mask_info.tilesize) throw std::runtime_error("invalid intergral edge " + to_string(edge));
-            //     auto delta = convert_to<vec2<rT>>(((index + intergral_dir) * mask_info.spatial.step - current));
-            //     std::cout << "delta=" << delta << std::endl;
-            //     delta /= mask_info.spatial.step;
-            //     rT prod = delta[0] * intergral_dir[0] + delta[1] * intergral_dir[1];
-            //     std::cout << "prod=" << prod << std::endl;
-            //     rT sign = std::abs(prod) / prod;
-            //     // std::cout << linear_interpolate<rT>::get_coef(prod * sign) * sign << std::endl;
-
-            });
+        auto roi = cutline_dbu{point_dbu{0,0}, step * mask_info.tilesize};
+        auto interpolate_to = [&](Image& im, cutline_dbu edge, point_dbu norm_dir){
+            int64_t sign = norm_dir[0] + norm_dir[1];
+            dissect_loop<point_dbu::value_type, 2>(edge, step, 
+                [&](point_dbu current){
+                    auto index = convert_to<point_dbu>(floor(current / mask_info.spatial.step));
+                    if(numerics_logic::operator<(index, (mask_info.tilesize - 1)))
+                    {
+                        auto delta = convert_to<vec2<rT>>(current - index * mask_info.spatial.step);
+                        delta /= step;
+                        vec2<rT> coefx = linear_interpolate<rT>::get_coef(delta[0]);
+                        vec2<rT> coefy = linear_interpolate<rT>::get_coef(delta[1]);
+                        auto [ix, iy] = index;
+                        im.at(iy * mask_info.tilesize[0] + ix)           += coefx[0] * coefy[0] * sign;
+                        im.at(iy * mask_info.tilesize[0] + ix + 1)       += coefx[1] * coefy[0] * sign;
+                        im.at((iy + 1) * mask_info.tilesize[0] + ix)     += coefx[0] * coefy[1] * sign;
+                        im.at((iy + 1) * mask_info.tilesize[0] + ix + 1) += coefx[1] * coefy[1] * sign;
+                    }
+                }
+            );
         };
-        std::cout <<"step" << mask_info.spatial.step << std::endl;
-        std::cout <<"roi" << roi<< std::endl;
+        debug_print<thin_mask>::out("step", mask_info.spatial.step);
+        debug_print<thin_mask>::out("roi", roi);
         for(const auto& poly : polys){
-            for(const auto& edge : poly){
-                if(!is_edge_inside_domain(edge, roi)) {
-                    continue;
-                }
-                auto [dx, dy] = norm_vector(edge);
-                if(0 != dx && 0 == dy){
-                    interpolate_to(x, edge, {-dy, dx});
-                }
-                else if(0 == dx && 0 != dy){
-                    interpolate_to(y, edge, {-dy, dx});
-                }
-                else{
-                    throw std::runtime_error("intergral_image failed at " + to_string(edge));
-                }
+            for(auto edge : poly){
+                edge -= start;
+                if(!is_edge_inside_domain(edge, roi)) continue;
+                auto [dx, dy] = unit_vector(edge);
+                if(0 != dx && 0 == dy) interpolate_to(x, edge, {-dy, dx});
+                else if(0 == dx && 0 != dy) interpolate_to(y, edge, {-dy, dx});
+                else throw std::runtime_error("intergral_image failed at " + to_string(edge));
             }
         }
-        const vec2<size_t> dir = {1, 0};
         return {x, y, mask_info};
     }
 

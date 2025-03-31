@@ -1,6 +1,7 @@
 #pragma once
 #include "geometry.hpp"
 
+extern bool verbose;
 struct cutline_jobs
 {
     std::string clip_dir;
@@ -49,8 +50,8 @@ struct cutline_jobs
         std::reverse(params.begin(), params.end());
         auto config_in_py = get_dict_values<user_config::print_type>(std::vector<std::string>(params.begin(), params.end()), workspace);
         user_config cfg = reinterpret_cast<user_config&>(config_in_py);
-
-        print_table(std::vector<user_config::print_type>{config_in_py}, params, 70);
+        debug_unclassified::verbose() =  (-1 < cfg.verbose); 
+        debug_unclassified(std::vector<user_config::print_type>{config_in_py}, params, 70);
         return cfg;
     }
     static cutline_jobs cutline_clip_flow(const cutline_jobs::user_config& config, vec2<double> shape_in_um)
