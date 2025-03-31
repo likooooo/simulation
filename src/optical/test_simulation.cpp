@@ -11,7 +11,8 @@ int main()
 {
     py_engine::init();
     add_path_to_sys_path("core_plugins");
-    catch_py_error(simulation_flow("/home/like/repos/simulation/config/calib_193.py"));
+    // catch_py_error
+    (simulation_flow("/home/like/repos/simulation/config/calib_193.py"));
     py_engine::dispose();
 }
 BOOST_PYTHON_MODULE(lib_test_simulation) {
@@ -38,13 +39,22 @@ std::vector<cutline_dbu> load_gauge_file(const std::string& path)
     return cutlines;
 }
 
-template<class TUserConfig> grid_start_step<double> optical_numerics_in_dbu(cutline_dbu cutline, const TUserConfig& config)
+template<class T> struct dbu_grid_start_step
+{
+    using value_type = int64_t;
+    constexpr static size_t dim = 2;
+    template<size_t DIM1> using rebind_t = grid_start_step<int64_t, DIM1>; 
+    struct StartStep{point_dbu start, step;}spatial;
+    typename grid_start_step<T, dim>::StartStep fourier;
+    vec<size_t, dim> tilesize;
+};
+
+template<class TUserConfig> dbu_grid_start_step<double> optical_numerics_in_dbu(cutline_dbu cutline, const TUserConfig& config)
 {
     auto roi = convert<cutline_dbu, rectangle<double>>{}(cutline);
     dbu_to_um(roi, config.dbu);
     auto grid_in_um = optical_numerics<double>(roi, config.ambit, config.tilesize, config.maxNA, config.wavelength); 
-    printf("    origin grid-um\n");
-    grid_in_um.print();
+    if(config.verbose) print_grid_start_step(grid_in_um, "origin grid-um");
 
     //== 1. spatial step
     um_to_dbu(grid_in_um.spatial.step, config.dbu);
@@ -71,24 +81,27 @@ template<class TUserConfig> grid_start_step<double> optical_numerics_in_dbu(cutl
             std::make_tuple(std::string("need more tile :"), ((to_in_dbu - from_in_dbu) - (spatial_domain_in_dbu - (ambit_in_dbu * 2))) / spatial_step_in_dbu),
         }, {"* roi or ambit is too large", ""});
     }
-    grid_start_step<double> grid_in_dbu;
+    dbu_grid_start_step<double> grid_in_dbu;
+    // grid_start_step<double> grid_in_dbu;
     grid_in_dbu.tilesize = config.tilesize;
-    grid_in_dbu.spatial.start = convert<vec2<int64_t>, vec2<double>>{}(spatial_start_in_dbu);
-    grid_in_dbu.spatial.step  = convert<vec2<int64_t>, vec2<double>>{}(spatial_step_in_dbu); 
-    double lambda_in_dbu = config.wavelength; 
+    grid_in_dbu.spatial.start = spatial_start_in_dbu;
+    grid_in_dbu.spatial.step  = spatial_step_in_dbu; 
+    double lambda_in_dbu      = config.wavelength; 
     um_to_dbu(lambda_in_dbu, config.dbu);
     grid_in_dbu.fourier.step  = vec2<double>{lambda_in_dbu, lambda_in_dbu} / spatial_domain_in_dbu;
     grid_in_dbu.fourier.start = vec2<double>{0, 0}; 
-    // grid_in_dbu.print();
-    grid_start_step<double> grid_to_um = grid_in_dbu;
-    dbu_to_um(grid_to_um.spatial.start, config.dbu);
-    dbu_to_um(grid_to_um.spatial.step, config.dbu);
-    printf("    grid-dbu-aligined to grid-um\n");
-    std::cout << "    center of simulation domain is " << 
-        dbu_to_um((grid_in_dbu.spatial.start + ((grid_in_dbu.spatial.step * grid_in_dbu.tilesize) * 0.5)), config.dbu) << 
-        " um" << std::endl;
-
-    grid_to_um.print();
+    
+    if(config.verbose)
+    {
+        grid_start_step<double> grid_to_um;
+        grid_to_um.tilesize      = grid_in_dbu.tilesize; 
+        grid_to_um.fourier       = grid_in_dbu.fourier;
+        grid_to_um.spatial.start = convert_to<vec2<double>>(grid_in_dbu.spatial.start); 
+        grid_to_um.spatial.step  = convert_to<vec2<double>>(grid_in_dbu.spatial.step); 
+        dbu_to_um(grid_to_um.spatial.start, config.dbu);
+        dbu_to_um(grid_to_um.spatial.step, config.dbu);
+        print_grid_start_step(grid_to_um, "grid-dbu-aligined to grid-um");
+    }
     return grid_in_dbu;
 }
 
@@ -101,9 +114,12 @@ void simulation_flow(const std::string& config_path)
     auto startstep_in_dbu = optical_numerics_in_dbu(cutlines.at(0), user_config);
    
     //== cutline subclip
-    auto shape =  (startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize) * user_config.dbu;
+    auto shape = convert_to<vec2<double>>((startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize)) * user_config.dbu;
     cutline_jobs jobs = cutline_jobs::cutline_clip_flow(user_config, shape);
+    
     //== load subclip
     shapes_dbu shapes = near_filed::load_shapes_from_file(jobs.clip_path(0).c_str(), user_config.cell_name, user_config.layer_id);
-    std::cout << shapes << std::endl;
+    auto [x, y, mask_info] = thin_mask<double, dbu_grid_start_step<double>>::intergral_image(startstep_in_dbu, shapes);
+    // imshow(x, convert_to<std::vector<size_t>>(info.tilesize));
+    // imshow(y, convert_to<std::vector<size_t>>(info.tilesize));
 }

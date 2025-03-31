@@ -2,10 +2,13 @@
 #include <py_helper.hpp>
 #include <type_traist_notebook/type_traist.hpp>
 
-using point_dbu = vec2<int64_t>;
-using cutline_dbu = rectangle<int64_t>;
-using poly_dbu = std::vector<cutline_dbu>;
-using shapes_dbu = std::vector<poly_dbu>;
+using point_dbu         = vec2<int64_t>;
+using poly_vertex_dbu   = std::vector<point_dbu>;
+using shapes_vertex_dbu = std::vector<poly_vertex_dbu>;
+
+using cutline_dbu = vec2<point_dbu>;
+using poly_dbu    = std::vector<cutline_dbu>;
+using shapes_dbu  = std::vector<poly_dbu>;
 
 template<class T, class T1> void dbu_to_um(T& t, T1 dbu){t *= dbu;}
 template<class T, class T1> void um_to_dbu(T& t, T1 dbu){t /= dbu;}
@@ -45,6 +48,11 @@ template<class T, size_t N> vec<T, N> unit_vector(const vec<T, N>& from, const v
     vec /= std::sqrt(vector_norm(vec));
     return vec;
 }
+template<class T, size_t N> vec<T, N> unit_vector(const vec2<vec<T, N>>& line)
+{
+    const auto& [from, to] = line;
+    return unit_vector(from, to);
+}
 template<class T, size_t N> vec<T, N> norm_vector(vec<T, N> from, vec<T, N> to)
 {
     if constexpr(N == 2){
@@ -59,10 +67,57 @@ template<class T, size_t N> vec<T, N> norm_vector(vec<T, N> from, vec<T, N> to)
         unreachable_constexpr_if<>();
     }
 }
+template<class T, size_t N> vec<T, N> norm_vector(const vec2<vec<T, N>>& line)
+{
+    const auto& [from, to] = line;
+    return norm_vector(from, to);
+}
+
+
+template<class T, size_t N, class PixelFunc, size_t Dim = 0>
+inline void __dissect_loop_impl(const vec2<vec<T, N>>& p, const vec<T, N>& step, PixelFunc&& func, std::array<T, N>& indices) 
+{
+    const auto&[from, to] = p;
+    if constexpr (Dim < N) 
+    {
+        for (indices[Dim] = from[Dim]; indices[Dim] <= to[Dim]; indices[Dim] += step[Dim]) 
+        {
+            __dissect_loop_impl<T, N, PixelFunc, Dim + 1>(p, step, std::forward<PixelFunc>(func), indices);
+        }
+    } 
+    else 
+    {
+        func(indices);
+    }
+}
+
+template<class T, size_t N, class TCallback> void dissect_loop(const vec2<vec<T, N>>& p, const vec<T, N>& step, TCallback&& callback_in_point)
+{
+    std::array<T, N> indices{};
+    __dissect_loop_impl<T, N>(p, step, std::forward<TCallback>(callback_in_point), indices);
+}   
+
 template<class T, size_t N> bool point_in_domain(const vec<T, N>& p, const vec<T, N>& from, const vec<T, N>& to){
     return from <= p && p <= to;
 }
-template<class T, size_t N> vec<T, N> point_in_domain_clamp(vec<T, N> p, const vec<T, N>& from, const vec<T, N>& to){
-    for(size_t i = 0; i < N; i++) p.at(i) = std::clamp(p.at(i), from.at(i), to.at(i));
+template<class T, size_t N> vec<T, N> domain_clamp(vec<T, N> p, const vec<T, N>& from, const vec<T, N>& to){
+    for(size_t i = 0; i < N; i++) {
+        if constexpr(is_real_or_complex_v<T>){
+            p.at(i) = std::clamp(p.at(i), from.at(i), to.at(i));
+        }
+        else{
+            p.at(i) = domain_clamp(p.at(i), from.at(i), to.at(i));
+        }
+    }
     return p;
+}
+template<class T, size_t N> bool is_point_inside_domain(const vec<T, N>& p, const vec2<vec<T, N>>& domain)
+{
+    const auto& [from, to] = domain;
+    return from <= p && p <= to;
+}
+template<class T, size_t N> bool is_edge_inside_domain(const vec2<vec<T, N>>& p, const vec2<vec<T, N>>& domain)
+{
+    const auto& [p1, p2]   = p;
+    return is_point_inside_domain(p1, domain) && is_point_inside_domain(p2, domain);
 }

@@ -1,4 +1,4 @@
-verbose = 0
+verbose = -1
 wavelength = 0.193 # um
 
 tilesize, ambit = [8, 8], [wavelength * 0, wavelength* 0]

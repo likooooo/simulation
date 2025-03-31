@@ -4,32 +4,38 @@
 template<class T, size_t DIM=2>
 struct grid_start_step
 {
+    using value_type = T;
+    constexpr static size_t dim = DIM;
+    template<size_t DIM1> using rebind_t = grid_start_step<T, DIM1>; 
+
     struct StartStep{vec<T, DIM> start, step;};
     StartStep spatial, fourier;
     vec<size_t, DIM> tilesize;
-    void print() const
-    {
-        std::vector<std::tuple<std::string, vec2<T>>> msg{
-            std::make_tuple(std::string("spatial start :"), spatial.start),
-            std::make_tuple(std::string("spatial step  :"), spatial.step),
-            std::make_tuple(std::string("fourier start :"), fourier.start),
-            std::make_tuple(std::string("fourier step  :"), fourier.step), 
-        };
-        print_table(msg, {"* optical numerics with tilesize=" + to_string(tilesize), ""});
-    }
-    template<size_t N> grid_start_step<T, N> change_dim()
-    {
-        grid_start_step<T, N> meta{0};
-        for(size_t i = 0; i < DIM; i++){
-            meta.tilesize[i] = tilesize[i];
-            meta.spatial.start[i] = spatial.start[i];
-            meta.spatial.step[i] = spatial.step[i];
-            meta.fourier.start[i] = fourier.start[i];
-            meta.fourier.step[i] = fourier.step[i];
-        }
-        return meta;
-    }
 };
+template<class TMeta, size_t N> inline auto change_dim(const TMeta& in)
+{
+    typename TMeta::rebind<N> meta{0};
+    for(size_t i = 0; i < TMeta::dim; i++){
+        meta.tilesize[i]      = in.tilesize[i];
+        meta.spatial.start[i] = in.spatial.start[i];
+        meta.spatial.step[i]  = in.spatial.step[i];
+        meta.fourier.start[i] = in.fourier.start[i];
+        meta.fourier.step[i]  = in.fourier.step[i];
+    }
+    return meta;
+}
+template<class TMeta> inline void print_grid_start_step(const TMeta& in, const std::string& tag = "") 
+{
+    std::vector<std::tuple<std::string, std::string>> msg{
+        std::make_tuple(std::string("tilesize      :"), to_string(in.tilesize)),
+        std::make_tuple(std::string("spatial start :"), to_string(in.spatial.start)),
+        std::make_tuple(std::string("spatial step  :"), to_string(in.spatial.step)),
+        std::make_tuple(std::string("fourier start :"), to_string(in.fourier.start)),
+        std::make_tuple(std::string("fourier step  :"), to_string(in.fourier.step)), 
+    };
+    print_table(msg, {"* " + tag, TypeReflection<TMeta>()});
+}
+
 template<class T>using point = vec2<T>;
 template<class T>using rectangle = vec2<point<T>>;
 

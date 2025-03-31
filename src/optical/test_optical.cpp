@@ -10,10 +10,8 @@ template<class T>void optical_numerics_test(rectangle<T> roi={0, -200, 400, 200}
     T maxNA = 1.2, T sigma = 0,  T lambda = 193
 )
 {
-    std::cout  << std::endl << "* OPC mode" << std::endl;
-    optical_numerics(roi, ambit, tilesize, maxNA, lambda).print();
-    std::cout << "* Bloch mode" << std::endl;
-    bloch_optical_numerics(roi, tilesize, maxNA, lambda).print();
+    print_grid_start_step(optical_numerics(roi, ambit, tilesize, maxNA, lambda), "OPC mode");
+    print_grid_start_step(bloch_optical_numerics(roi, tilesize, maxNA, lambda), "Bloch mode");
 }
 int main()
 {

@@ -21,7 +21,12 @@ struct lagrange_interpolate
     } 
     template<class TContainer>constexpr static T eval(const T x, const TContainer& vec){
         auto [index, info] = interpolate_info(x, vec.size());
-        T result = 0;
+        T result;
+        if constexpr(is_real_or_complex_v<T>){
+            result = 0;
+        } else{
+            std::fill(result.begin(), result.end(), 0);
+        }
         for(size_t i = 0; i < N; i++){
             result += vec.at(index + i) * info.at(i);
         }
@@ -37,7 +42,12 @@ private:
     constexpr static T get_Ln_denominator(const size_t n)
     {
         const std::array<T,N> xn = get_xn(n);
-        T Ln = 1;
+        T Ln;
+        if constexpr(is_real_or_complex_v<T>){
+            Ln = 1;
+        } else{
+            std::fill(Ln.begin(), Ln.end(), 1);
+        }
         for(size_t i = 0; i < N; i++){
 	        if(n == i) continue;
             Ln *= xn.at(i);
@@ -47,7 +57,12 @@ private:
     constexpr static T get_Ln_numerator(const T dx, const size_t n)
     {
         const std::array<T, N> xn = get_xn(dx);
-        T Ln = 1;
+        T Ln;
+        if constexpr(is_real_or_complex_v<T>){
+            Ln = 1;
+        } else{
+            std::fill(Ln.begin(), Ln.end(), 1);
+        }
         for(size_t i = 0; i < N; i++){
 	        if(n == i) continue;
             Ln *= xn.at(i);
