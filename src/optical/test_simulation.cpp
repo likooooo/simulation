@@ -5,6 +5,8 @@
 #include <optical/geometry.hpp>
 #include <optical/clip.hpp>
 #include <optical/near_field/thin_mask.hpp>
+#include <cpp_cuda/cuda_vector.hpp>
+#include <uca/uca.backend.hpp>
 
 bool verbose = false;
 
@@ -122,6 +124,10 @@ void simulation_flow(const std::string& config_path)
     //== load subclip
     shapes_dbu shapes = near_filed::load_shapes_from_file(jobs.clip_path(0).c_str(), user_config.cell_name, user_config.layer_id);
     auto [x, y, mask_info] = thin_mask<double, dbu_grid_start_step<double>>::intergral_image(startstep_in_dbu, shapes);
-    imshow(x, convert_to<std::vector<size_t>>(mask_info.tilesize));
+    // imshow(x, convert_to<std::vector<size_t>>(mask_info.tilesize));
+    // imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
+    cuda::device_vector<double> cx, cy; cx << x; cy << y;
+    uca::gpu<double>::ref().VtAdd(x.size(), cx.data(), cy.data());
+    y <<cy;
     imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
 }

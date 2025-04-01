@@ -2,7 +2,7 @@
 #include <type_traist_notebook/type_traist.hpp>
 #include <optical/geometry.hpp>
 #include <optical/polynomials.hpp>
-extern bool verbose;
+
 template<class Image, class MetaData> 
 struct init_image
 {
@@ -51,7 +51,7 @@ template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
         const auto& step = mask_info.spatial.step;
         auto roi = cutline_dbu{point_dbu{0,0}, step * mask_info.tilesize};
         auto interpolate_to = [&](Image& im, cutline_dbu edge, point_dbu norm_dir){
-            int64_t sign = norm_dir[0] + norm_dir[1];
+            int64_t sign = (norm_dir[0] + norm_dir[1]);
             dissect_loop<point_dbu::value_type, 2>(edge, step, 
                 [&](point_dbu current){
                     auto index = convert_to<point_dbu>(floor(current / mask_info.spatial.step));
@@ -62,10 +62,10 @@ template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
                         vec2<rT> coefx = linear_interpolate<rT>::get_coef(delta[0]);
                         vec2<rT> coefy = linear_interpolate<rT>::get_coef(delta[1]);
                         auto [ix, iy] = index;
-                        im.at(iy * mask_info.tilesize[0] + ix)           += coefx[0] * coefy[0] * sign;
-                        im.at(iy * mask_info.tilesize[0] + ix + 1)       += coefx[1] * coefy[0] * sign;
-                        im.at((iy + 1) * mask_info.tilesize[0] + ix)     += coefx[0] * coefy[1] * sign;
-                        im.at((iy + 1) * mask_info.tilesize[0] + ix + 1) += coefx[1] * coefy[1] * sign;
+                        im.at(iy * mask_info.tilesize[0] + ix)           += coefx[0] * coefy[0] * 0.5 * sign;
+                        im.at(iy * mask_info.tilesize[0] + ix + 1)       += coefx[1] * coefy[0] * 0.5 * sign;
+                        im.at((iy + 1) * mask_info.tilesize[0] + ix)     += coefx[0] * coefy[1] * 0.5 * sign;
+                        im.at((iy + 1) * mask_info.tilesize[0] + ix + 1) += coefx[1] * coefy[1] * 0.5 * sign;
                     }
                 }
             );

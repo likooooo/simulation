@@ -1,7 +1,6 @@
 #pragma once
 #include "geometry.hpp"
 
-extern bool verbose;
 struct cutline_jobs
 {
     std::string clip_dir;

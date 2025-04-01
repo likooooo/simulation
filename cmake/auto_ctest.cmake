@@ -1,6 +1,5 @@
 set(test ${CMAKE_CURRENT_LIST_DIR}/auto_ctest_impl.py)
 
-message(${test})
 execute_process(
     COMMAND python3 ${test} ${CMAKE_BINARY_DIR}
     RESULT_VARIABLE result
