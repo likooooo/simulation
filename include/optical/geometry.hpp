@@ -83,7 +83,8 @@ inline void __dissect_loop_impl(const vec2<vec<T, N>>& p, const vec<T, N>& step,
     {
         T lb = std::min(from[Dim], to[Dim]);
         T ub = std::max(from[Dim], to[Dim]);
-        for (indices[Dim] = lb; indices[Dim] <= ub; indices[Dim] += step[Dim]) 
+        if(ub == lb) ub = lb + step[Dim];
+        for (indices[Dim] = lb; indices[Dim] < ub; indices[Dim] += step[Dim]) 
         {
             __dissect_loop_impl<T, N, PixelFunc, Dim + 1>(p, step, std::forward<PixelFunc>(func), indices);
         }
