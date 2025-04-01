@@ -1,0 +1,20 @@
+${CMAKE_BINARY_DIR}/test_fresnel
+golden;
+${CMAKE_BINARY_DIR}/test_nearfield
+golden;
+${CMAKE_BINARY_DIR}/test_optical
+golden;
+${CMAKE_BINARY_DIR}/test_polar
+golden;
+${CMAKE_BINARY_DIR}/test_polynomials
+golden;
+${CMAKE_BINARY_DIR}/test_pupil
+golden;
+${CMAKE_BINARY_DIR}/test_source
+golden;
+${CMAKE_BINARY_DIR}/test_tmm
+golden;
+${CMAKE_BINARY_DIR}/test_zernike m 1 l 1
+golden;
+${CMAKE_BINARY_DIR}/test_simulation
+golden;
