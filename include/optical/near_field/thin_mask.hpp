@@ -55,7 +55,7 @@ template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
             dissect_loop<point_dbu::value_type, 2>(edge, step, 
                 [&](point_dbu current){
                     auto index = convert_to<point_dbu>(floor(current / mask_info.spatial.step));
-                    if(numerics_logic::operator<(index, (mask_info.tilesize - 1)))
+                    if(full_compare<point_dbu, vec2<size_t>>::less(index, (mask_info.tilesize - 1)))
                     {
                         auto delta = convert_to<vec2<rT>>(current - index * mask_info.spatial.step);
                         delta /= step;

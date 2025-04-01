@@ -77,7 +77,6 @@ template<class T, size_t N> vec<T, N> norm_vector(const vec2<vec<T, N>>& line)
 template<class T, size_t N, class PixelFunc, size_t Dim = 0>
 inline void __dissect_loop_impl(const vec2<vec<T, N>>& p, const vec<T, N>& step, PixelFunc&& func, std::array<T, N>& indices) 
 {
-    using namespace numerics_logic;
     assert(step > 0);
     const auto&[from, to] = p;
     if constexpr (Dim < N) 
@@ -118,7 +117,7 @@ template<class T, size_t N> vec<T, N> domain_clamp(vec<T, N> p, const vec<T, N>&
 template<class T, size_t N> bool is_point_inside_domain(const vec<T, N>& p, const vec2<vec<T, N>>& domain)
 {
     const auto& [from, to] = domain;
-    return numerics_logic::operator <=(from, p) && numerics_logic::operator >(p, from);
+    return full_compare<vec<T, N>, vec<T, N>>::less_equal(from, p) && full_compare<vec<T, N>,vec<T, N>>::greater(p, from);
 }
 template<class T, size_t N> bool is_edge_inside_domain(const vec2<vec<T, N>>& p, const vec2<vec<T, N>>& domain)
 {
