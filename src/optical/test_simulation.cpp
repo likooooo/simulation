@@ -8,6 +8,7 @@
 // #include <cpp_cuda/cuda_vector.hpp>
 #include <type_traist_notebook/uca/backend.hpp>
 #include <mekil/cpu_backend.hpp>
+#include <cpp_cuda/gpu_backend.hpp>
 
 bool verbose = false;
 
@@ -110,10 +111,12 @@ template<class TUserConfig> dbu_grid_start_step<double> optical_numerics_in_dbu(
     return grid_in_dbu;
 }
 
-const uca::backend<double>& backend = uca::cpu<double>::ref();
 
 void simulation_flow(const std::string& config_path)
 {
+    // const uca::backend<double>& backend = uca::cpu<double>::ref();
+    const uca::backend<double>& backend = uca::gpu<double>::ref();
+
     auto [user_config, params] = cutline_jobs::get_user_config(config_path);
     //== load gauge file & calc startstep
     auto cutlines = load_gauge_file(user_config.gauge_file);
@@ -129,14 +132,15 @@ void simulation_flow(const std::string& config_path)
     debug_print<thin_mask_solver>::verbose() = -1 < user_config.verbose;
     auto [x, y, mask_info] = thin_mask_solver::edge_pixelization(startstep_in_dbu, shapes, convert_to<size_t>(params["mask_USF"]),  convert_to<double>(params["mask_edge_dissect_coef"]));
     // imshow(x, convert_to<std::vector<size_t>>(mask_info.tilesize));
-    uca::cpu<double>::ref().integral_y(mask_info.tilesize, x.data());
+    backend.integral_y(mask_info.tilesize, x.data());
     // imshow(x, convert_to<std::vector<size_t>>(mask_info.tilesize));
 
     // imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
-    uca::cpu<double>::ref().integral_x(mask_info.tilesize, y.data());
+    backend.integral_x(mask_info.tilesize, y.data());
     // imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
 
     backend.VtAdd(x.size(), x.data(), y.data());
+
     //== gpu backend
     // cuda::device_vector<double> cx, cy; cx << x; cy << y;
     // uca::gpu<double>::ref().VtAdd(x.size(), cx.data(), cy.data());
