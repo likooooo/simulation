@@ -35,7 +35,7 @@ struct cutline_jobs
         using print_type = std::tuple<int, double, int, std::string, std::string, std::string, vec2<double>, vec2<size_t>, double, double, double>;
     }user;
 
-    static user_config get_user_config(const std::string& path)
+    static std::pair<user_config, py::dict> get_user_config(const std::string& path)
     {
         using T = inverse_tuple_t<user_config::print_type>;
         auto workspace = py_plugin::exec({path});
@@ -51,7 +51,7 @@ struct cutline_jobs
         user_config cfg = reinterpret_cast<user_config&>(config_in_py);
         debug_unclassified::verbose() =  (-1 < cfg.verbose); 
         debug_unclassified(std::vector<user_config::print_type>{config_in_py}, params, 70);
-        return cfg;
+        return {cfg, convert_to<py::dict>(workspace)};
     }
     static cutline_jobs cutline_clip_flow(const cutline_jobs::user_config& config, vec2<double> shape_in_um)
     {
