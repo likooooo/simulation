@@ -6,7 +6,7 @@
 #include <optical/clip.hpp>
 #include <optical/near_field/thin_mask.hpp>
 // #include <cpp_cuda/cuda_vector.hpp>
-// #include <uca/uca.backend.hpp>
+#include <type_traist_notebook/uca/backend.hpp>
 #include <mekil/cpu_backend.hpp>
 
 bool verbose = false;
@@ -110,10 +110,11 @@ template<class TUserConfig> dbu_grid_start_step<double> optical_numerics_in_dbu(
     return grid_in_dbu;
 }
 
+const uca::backend<double>& backend = uca::cpu<double>::ref();
+
 void simulation_flow(const std::string& config_path)
 {
     auto [user_config, params] = cutline_jobs::get_user_config(config_path);
-
     //== load gauge file & calc startstep
     auto cutlines = load_gauge_file(user_config.gauge_file);
     auto startstep_in_dbu = optical_numerics_in_dbu(cutlines.at(0), user_config);
@@ -135,7 +136,7 @@ void simulation_flow(const std::string& config_path)
     uca::cpu<double>::ref().integral_x(mask_info.tilesize, y.data());
     // imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
 
-    uca::cpu<double>::ref().VtAdd(x.size(), x.data(), y.data());
+    backend.VtAdd(x.size(), x.data(), y.data());
     //== gpu backend
     // cuda::device_vector<double> cx, cy; cx << x; cy << y;
     // uca::gpu<double>::ref().VtAdd(x.size(), cx.data(), cy.data());
