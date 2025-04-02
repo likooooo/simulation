@@ -6,7 +6,7 @@
 template<class Image, class MetaData> 
 struct init_image
 {
-    constexpr static std::pair<Image, MetaData> operator()(MetaData info, const size_t USF = 1)
+    constexpr std::pair<Image, MetaData> operator()(MetaData info, const size_t USF = 1)
     {
         info.tilesize *= USF;
         info.spatial.step /= typename MetaData::value_type(USF);
@@ -42,7 +42,7 @@ template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
 {
     using cT = complex_t<T>;
     using rT = real_t<T>;
-    static std::tuple<Image, Image, TMeta> intergral_image(const TMeta& info, const std::vector<poly_dbu>& polys)
+    static std::tuple<Image, Image, TMeta> intergral_image(const TMeta& info, const std::vector<poly_dbu>& polys, rT dissect_coef = 0.5)
     {
         auto [x, mask_info] = init_image<Image, TMeta>{}(info, 8);
         print_grid_start_step<TMeta, debug_print<thin_mask>>(mask_info, "intergral image");
@@ -51,10 +51,17 @@ template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
         const auto& step = mask_info.spatial.step;
         auto roi = cutline_dbu{point_dbu{0,0}, step * mask_info.tilesize};
         auto interpolate_to = [&](Image& im, cutline_dbu edge, point_dbu norm_dir){
-            int64_t sign = (norm_dir[0] + norm_dir[1]);
-            dissect_loop<point_dbu::value_type, 2>(edge, step, 
+            rT sign = (norm_dir[0] + norm_dir[1]);
+            dissect_loop<point_dbu::value_type, 2>(edge, step * dissect_coef, 
                 [&](point_dbu current){
-                    auto index = convert_to<point_dbu>(floor(current / mask_info.spatial.step));
+                    point_dbu index;
+                    if((norm_dir == point_dbu{-1, 0}) || (norm_dir == point_dbu{0, -1}))
+                        index = convert_to<point_dbu>(current / mask_info.spatial.step);
+                    else if((norm_dir == point_dbu{1, 0}) || (norm_dir == point_dbu{0, 1}))
+                        index = convert_to<point_dbu>((current + mask_info.spatial.step) / mask_info.spatial.step);
+                    else throw std::runtime_error("dissect_loop failed at " + to_string(current));
+
+                    // auto index = convert_to<point_dbu>(floor(current / mask_info.spatial.step));
                     if(full_compare<point_dbu, vec2<size_t>>::less(index, (mask_info.tilesize - 1)))
                     {
                         auto delta = convert_to<vec2<rT>>(current - index * mask_info.spatial.step);
@@ -62,16 +69,16 @@ template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
                         vec2<rT> coefx = linear_interpolate<rT>::get_coef(delta[0]);
                         vec2<rT> coefy = linear_interpolate<rT>::get_coef(delta[1]);
                         auto [ix, iy] = index;
-                        im.at(iy * mask_info.tilesize[0] + ix)           += coefx[0] * coefy[0] * 0.5 * sign;
-                        im.at(iy * mask_info.tilesize[0] + ix + 1)       += coefx[1] * coefy[0] * 0.5 * sign;
-                        im.at((iy + 1) * mask_info.tilesize[0] + ix)     += coefx[0] * coefy[1] * 0.5 * sign;
-                        im.at((iy + 1) * mask_info.tilesize[0] + ix + 1) += coefx[1] * coefy[1] * 0.5 * sign;
+                        im.at(iy * mask_info.tilesize[0] + ix)           += coefx[0] * coefy[0] * dissect_coef * 0.5 * sign;
+                        im.at(iy * mask_info.tilesize[0] + ix + 1)       += coefx[1] * coefy[0] * dissect_coef * 0.5 * sign;
+                        im.at((iy + 1) * mask_info.tilesize[0] + ix)     += coefx[0] * coefy[1] * dissect_coef * 0.5 * sign;
+                        im.at((iy + 1) * mask_info.tilesize[0] + ix + 1) += coefx[1] * coefy[1] * dissect_coef * 0.5 * sign;
                     }
+                    // else
+                    //     error_unclassified::out("out of tilebox ", to_string(vec2<rT>{0.00025, 0.00025} * (start + current)));
                 }
             );
         };
-        debug_print<thin_mask>::out("step", mask_info.spatial.step);
-        debug_print<thin_mask>::out("roi", roi);
         for(const auto& poly : polys){
             for(auto edge : poly){
                 edge -= start;
@@ -84,5 +91,4 @@ template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
         }
         return {x, y, mask_info};
     }
-
 };

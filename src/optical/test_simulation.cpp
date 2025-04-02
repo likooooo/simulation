@@ -5,8 +5,9 @@
 #include <optical/geometry.hpp>
 #include <optical/clip.hpp>
 #include <optical/near_field/thin_mask.hpp>
-#include <cpp_cuda/cuda_vector.hpp>
-#include <uca/uca.backend.hpp>
+// #include <cpp_cuda/cuda_vector.hpp>
+// #include <uca/uca.backend.hpp>
+#include <mekil/cpu_backend.hpp>
 
 bool verbose = false;
 
@@ -122,12 +123,30 @@ void simulation_flow(const std::string& config_path)
     cutline_jobs jobs = cutline_jobs::cutline_clip_flow(user_config, shape);
     
     //== load subclip
+    using thin_mask_solver = thin_mask<double, dbu_grid_start_step<double>>;
     shapes_dbu shapes = near_filed::load_shapes_from_file(jobs.clip_path(0).c_str(), user_config.cell_name, user_config.layer_id);
-    auto [x, y, mask_info] = thin_mask<double, dbu_grid_start_step<double>>::intergral_image(startstep_in_dbu, shapes);
-    // imshow(x, convert_to<std::vector<size_t>>(mask_info.tilesize));
-    // imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
-    cuda::device_vector<double> cx, cy; cx << x; cy << y;
-    uca::gpu<double>::ref().VtAdd(x.size(), cx.data(), cy.data());
-    y <<cy;
+    debug_print<thin_mask_solver>::verbose() = -1 < user_config.verbose;
+    auto [x, y, mask_info] = thin_mask_solver::intergral_image(startstep_in_dbu, shapes);
+    imshow(x, convert_to<std::vector<size_t>>(mask_info.tilesize));
+    uca::cpu<double>::ref().integral_y(mask_info.tilesize, x.data());
+    imshow(x, convert_to<std::vector<size_t>>(mask_info.tilesize));
+
+    imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
+    uca::cpu<double>::ref().integral_x(mask_info.tilesize, y.data());
+    imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
+
+    uca::cpu<double>::ref().VtAdd(x.size(), x.data(), y.data());
+    //== gpu backend
+    // cuda::device_vector<double> cx, cy; cx << x; cy << y;
+    // uca::gpu<double>::ref().VtAdd(x.size(), cx.data(), cy.data());
+    // y <<cy;
+
+    
+
+    //== compare dissect coef
+    // auto [x1, y1, mask_info1] = thin_mask_solver::intergral_image(startstep_in_dbu, shapes, 0.5);
+    // uca::cpu<double>::ref().VtAdd(x1.size(), x1.data(), y1.data());
+    // y -= y1;
+    // std::cout << *std::max_element(y.begin(), y.end()) << std::endl;
     imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
 }

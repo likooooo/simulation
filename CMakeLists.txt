@@ -6,9 +6,10 @@ project(simulation
 )
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 find_package(py_visualizer REQUIRED)
-find_package(kernels REQUIRED)
+# find_package(kernels REQUIRED)
+
 include_directories(include)
-add_subdirectory(src/uca)
 add_subdirectory(src/optical)
 include(cmake/auto_ctest.cmake)
