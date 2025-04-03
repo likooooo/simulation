@@ -115,55 +115,48 @@ template<class TUserConfig> dbu_grid_start_step<double> optical_numerics_in_dbu(
     return grid_in_dbu;
 }
 
+// const uca::backend<double>& backend = uca::cpu<double>::ref();
+const uca::backend<double>& backend = uca::cpu<double>::ref();
+void do_cutline_job(const std::string& oas_path, const cutline_dbu& cutline, const cutline_jobs::user_config& user_config ,const py::object params_optional)
+{
+    auto startstep_in_dbu = optical_numerics_in_dbu(cutline, user_config);
+   
+    //== cutline subclip
+    auto shape = convert_to<vec2<double>>((startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize)) * user_config.dbu;
+    
+    //== load subclip
+    using thin_mask_solver = thin_mask<double, dbu_grid_start_step<double>>;
+    shapes_dbu shapes = near_filed::load_shapes_from_file(oas_path.c_str(), user_config.cell_name, user_config.layer_id);
+    debug_print<thin_mask_solver>::verbose() = user_config.verbose();
+    auto [x, y, mask_info] = thin_mask_solver::edge_pixelization(startstep_in_dbu, shapes, convert_to<size_t>(params_optional["mask_USF"]),  convert_to<double>(params_optional["mask_edge_dissect_coef"]));
+    backend.integral_y(mask_info.tilesize, x.data());
+    backend.integral_x(mask_info.tilesize, y.data());
+    backend.VtAdd(x.size(), x.data(), y.data());
+
+    auto [edge_image, cutline_meta] = thin_mask_solver::get_edge_from_rasterization(mask_info, y, cutline);
+    if(user_config.verbose())
+    {
+        imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
+        auto start = dbu_to_um(convert_to<vec2<float>>(cutline_meta.spatial.start), user_config.dbu);
+        auto step = dbu_to_um(convert_to<vec2<float>>(cutline_meta.spatial.step), user_config.dbu);
+        // plot_curves(std::vector<std::vector<double>>{cutline}, {start[0]}, {float(step[0])}, {"cutline (um)"}, {"b--"});  
+        plot_curves(std::vector<std::vector<double>>{edge_image}, {0}, {float(1)}, {"cutline (pixel)"}, {"b--"});  
+    }
+    std::cout << "cutline of " << oas_path << " is " << edge_image << std::endl;
+}
 
 void simulation_flow(const std::string& config_path)
 {
-    // const uca::backend<double>& backend = uca::cpu<double>::ref();
-    const uca::backend<double>& backend = uca::cpu<double>::ref();
-
     auto [user_config, params] = cutline_jobs::get_user_config(config_path);
     //== load gauge file & calc startstep
     auto cutlines = load_gauge_file(user_config.gauge_file);
+
     auto startstep_in_dbu = optical_numerics_in_dbu(cutlines.at(0), user_config);
    
     //== cutline subclip
     auto shape = convert_to<vec2<double>>((startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize)) * user_config.dbu;
     cutline_jobs jobs = cutline_jobs::cutline_clip_flow(user_config, shape);
-    
-    //== load subclip
-    using thin_mask_solver = thin_mask<double, dbu_grid_start_step<double>>;
-    shapes_dbu shapes = near_filed::load_shapes_from_file(jobs.clip_path(0).c_str(), user_config.cell_name, user_config.layer_id);
-    debug_print<thin_mask_solver>::verbose() = -1 < user_config.verbose;
-    auto [x, y, mask_info] = thin_mask_solver::edge_pixelization(startstep_in_dbu, shapes, convert_to<size_t>(params["mask_USF"]),  convert_to<double>(params["mask_edge_dissect_coef"]));
-    // imshow(x, convert_to<std::vector<size_t>>(mask_info.tilesize));
-    backend.integral_y(mask_info.tilesize, x.data());
-    // imshow(x, convert_to<std::vector<size_t>>(mask_info.tilesize));
-
-    // imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
-    backend.integral_x(mask_info.tilesize, y.data());
-    // imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
-
-    backend.VtAdd(x.size(), x.data(), y.data());
-
-    //== gpu backend
-    // cuda::device_vector<double> cx, cy; cx << x; cy << y;
-    // uca::gpu<double>::ref().VtAdd(x.size(), cx.data(), cy.data());
-    // y <<cy;
-
-
-    //== compare dissect coef
-    // auto [x1, y1, mask_info1] = thin_mask_solver::edge_pixelization(startstep_in_dbu, shapes, 0.5);
-    // uca::cpu<double>::ref().VtAdd(x1.size(), x1.data(), y1.data());
-    // y -= y1;
-    // std::cout << *std::max_element(y.begin(), y.end()) << std::endl;
-    imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
-
-    auto [cutline, cutline_meta] = thin_mask_solver::get_edge_from_rasterization(mask_info, y, cutlines.at(0));
-    {
-        auto start = dbu_to_um(convert_to<vec2<float>>(cutline_meta.spatial.start), user_config.dbu);
-        auto step = dbu_to_um(convert_to<vec2<float>>(cutline_meta.spatial.step), user_config.dbu);
-        // plot_curves(std::vector<std::vector<double>>{cutline}, {start[0]}, {float(step[0])}, {"cutline (um)"}, {"b--"});  
-        plot_curves(std::vector<std::vector<double>>{cutline}, {0}, {float(1)}, {"cutline (pixel)"}, {"b--"});  
-
-    }
+    #pragma omp for
+    for(size_t i = 0; i < cutlines.size(); i++)
+        do_cutline_job(jobs.clip_path(i), cutlines.at(i), user_config, params);
 }

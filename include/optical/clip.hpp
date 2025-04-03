@@ -31,7 +31,8 @@ struct cutline_jobs
         std::string cell_name;
         int layer_id;
         double dbu;
-        int verbose;
+        int vb;
+        bool verbose() const {return -1 < vb;}
         using print_type = std::tuple<int, double, int, std::string, std::string, std::string, vec2<double>, vec2<size_t>, double, double, double>;
     }user;
 
@@ -49,7 +50,7 @@ struct cutline_jobs
         std::reverse(params.begin(), params.end());
         auto config_in_py = get_dict_values<user_config::print_type>(std::vector<std::string>(params.begin(), params.end()), workspace);
         user_config cfg = reinterpret_cast<user_config&>(config_in_py);
-        debug_unclassified::verbose() =  (-1 < cfg.verbose); 
+        debug_unclassified::verbose() =  cfg.verbose(); 
         debug_unclassified(std::vector<user_config::print_type>{config_in_py}, params, 70);
         return {cfg, convert_to<py::dict>(workspace)};
     }
@@ -58,7 +59,7 @@ struct cutline_jobs
         std::vector<std::string> cmd {"./core_plugins/gauge_io.py",
             config.gauge_file, config.oas_file, config.cell_name, std::to_string(config.layer_id),
             "--shape", std::to_string(shape_in_um[0]) + ", " + std::to_string(shape_in_um[1]), 
-            "--verbose", std::to_string(config.verbose)
+            "--verbose", std::to_string(config.vb)
         };
         auto workspace = py_plugin::exec(cmd);
         std::string clip_dir = py::extract<std::string>(workspace["workdir"]);
