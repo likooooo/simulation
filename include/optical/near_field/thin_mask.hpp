@@ -6,7 +6,7 @@
 template<class Image, class MetaData> 
 struct init_image
 {
-    constexpr std::pair<Image, MetaData> operator()(MetaData info, const size_t USF = 1)
+    constexpr std::pair<Image, MetaData> operator()(MetaData info, const size_t USF = 1) const
     {
         info.tilesize *= USF;
         info.spatial.step /= typename MetaData::value_type(USF);
@@ -16,6 +16,14 @@ struct init_image
             [](auto a, auto b){return a * b;}
         );
         return {Image(prod), info};
+    }
+    template<class TShape>constexpr Image operator()(TShape shape) const
+    {
+        auto prod = std::accumulate(
+            shape.begin(), shape.end(), 1, 
+            [](auto a, auto b){return a * b;}
+        );
+        return Image(prod);
     }
 };
 
@@ -42,9 +50,10 @@ template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
 {
     using cT = complex_t<T>;
     using rT = real_t<T>;
+    constexpr static init_image<Image, TMeta> gen_image{};
     static std::tuple<Image, Image, TMeta> edge_pixelization(const TMeta& info, const std::vector<poly_dbu>& polys, size_t USF = 8, rT dissect_coef = 0.5)
     {
-        auto [x, mask_info] = init_image<Image, TMeta>{}(info, USF);
+        auto [x, mask_info] = gen_image(info, USF);
         print_grid_start_step<TMeta, debug_print<thin_mask>>(mask_info, "intergral image");
         auto y = x;
         const auto& start = mask_info.spatial.start;
@@ -82,5 +91,42 @@ template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
             }
         }
         return {x, y, mask_info};
+    }
+    static std::tuple<Image, TMeta> get_edge_from_rasterization(const TMeta& info, const Image& image, const cutline_dbu& cutline, size_t USF = 1)
+    {
+        const auto& [start, step] = info.spatial;
+        const auto& [from, to] = (cutline - start);
+        TMeta cutline_meta = info;
+        cutline_meta.spatial.start = cutline[0];
+        cutline_meta.spatial.step = step / USF;
+        
+        cutline_meta.tilesize = convert_to<vec2<size_t>>(((to - from + step)/step) * USF); 
+        Image line = gen_image(cutline_meta.tilesize);
+        dissect_loop<point_dbu::value_type, 2>(cutline, step * (rT(1.0)/USF), 
+            [&](point_dbu current){
+                point_dbu idx_cutline = convert_to<point_dbu>((current - cutline[0]) / cutline_meta.spatial.step);
+                if(0 != idx_cutline[0] && 0 != idx_cutline[1]){
+                    error_unclassified::out("invalid cutline :", cutline, " index : ", idx_cutline);
+                    return;
+                }
+                point_dbu idx_image = convert_to<point_dbu>((current - start) / info.spatial.step);
+                if(!full_compare<point_dbu, vec2<size_t>>::less(idx_image, info.tilesize)){
+                    error_unclassified::out("cutline is too close to image border. ", std::make_tuple(cutline, current, start, step, info.tilesize));
+                    return;
+                }
+                auto delta = convert_to<vec2<rT>>(current - start - idx_image * info.spatial.step);
+                delta /= step;
+                const auto coefx = linear_interpolate<rT>::get_coef(delta[0]);
+                const auto coefy = linear_interpolate<rT>::get_coef(delta[1]);
+                auto [ix, iy] = idx_image;
+                // line.at(idx_cutline[0] + idx_cutline[1]) = image.at(iy * info.tilesize[0] + ix);
+                line.at(idx_cutline[0] + idx_cutline[1]) = 
+                image.at(iy * info.tilesize[0] + ix)           * coefx[0] * coefy[0] +
+                image.at(iy * info.tilesize[0] + ix + 1)       * coefx[1] * coefy[0] +
+                image.at((iy + 1) * info.tilesize[0] + ix)     * coefx[0] * coefy[1] +
+                image.at((iy + 1) * info.tilesize[0] + ix + 1) * coefx[1] * coefy[1];
+            }
+        );
+        return {line, cutline_meta};
     }
 };

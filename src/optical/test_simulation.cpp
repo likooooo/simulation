@@ -115,7 +115,7 @@ template<class TUserConfig> dbu_grid_start_step<double> optical_numerics_in_dbu(
 void simulation_flow(const std::string& config_path)
 {
     // const uca::backend<double>& backend = uca::cpu<double>::ref();
-    const uca::backend<double>& backend = uca::gpu<double>::ref();
+    const uca::backend<double>& backend = uca::cpu<double>::ref();
 
     auto [user_config, params] = cutline_jobs::get_user_config(config_path);
     //== load gauge file & calc startstep
@@ -153,4 +153,13 @@ void simulation_flow(const std::string& config_path)
     // y -= y1;
     // std::cout << *std::max_element(y.begin(), y.end()) << std::endl;
     imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
+
+    auto [cutline, cutline_meta] = thin_mask_solver::get_edge_from_rasterization(mask_info, y, cutlines.at(0));
+    {
+        auto start = dbu_to_um(convert_to<vec2<float>>(cutline_meta.spatial.start), user_config.dbu);
+        auto step = dbu_to_um(convert_to<vec2<float>>(cutline_meta.spatial.step), user_config.dbu);
+        // plot_curves(std::vector<std::vector<double>>{cutline}, {start[0]}, {float(step[0])}, {"cutline (um)"}, {"b--"});  
+        plot_curves(std::vector<std::vector<double>>{cutline}, {0}, {float(1)}, {"cutline (pixel)"}, {"b--"});  
+
+    }
 }
