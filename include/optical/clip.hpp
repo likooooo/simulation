@@ -68,24 +68,4 @@ struct cutline_jobs
         std::cout << "clip_dir, job-count = " << std::make_tuple(clip_dir, cutlines_in_um.shape(0)) << std::endl;
         return cutline_jobs{clip_dir, workspace, cutlines_in_um, mid_points_in_um, config};
     }
-    
-    static void cutline_clip_flow_v1(const cutline_jobs& config, vec2<double> shape_in_um)
-    {
-        const std::array<std::string, 2> suffix{";", ""};
-        std::string start_points;
-        auto [pLines, line_size] = ndarray_ref_no_padding<rectangle<double>>(config.cutlines_in_um);
-        for(size_t i = 0; i < line_size; i++, pLines++){
-            const auto [from, to] = *pLines;
-            vec2<double> start = (to + from - shape_in_um)/2;
-            start_points += std::to_string(start[0]) + ", " + std::to_string(start[1]) + suffix.at(i == (line_size - 1));
-        }
-        
-        std::vector<std::string> cmd {"./core_plugins/klayout_op.py",
-            config.user.oas_file, config.user.cell_name, std::to_string(config.user.layer_id),
-            "--start-points", start_points,
-            "--shape", std::to_string(shape_in_um[0]) + ", " + std::to_string(shape_in_um[1]), 
-        };
-        
-        auto workspace = py_plugin::exec(cmd);
-    }
 };
