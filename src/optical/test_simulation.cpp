@@ -7,8 +7,12 @@
 #include <optical/near_field/thin_mask.hpp>
 // #include <cpp_cuda/cuda_vector.hpp>
 #include <type_traist_notebook/uca/backend.hpp>
-#include <mekil/cpu_backend.hpp>
-#include <cpp_cuda/gpu_backend.hpp>
+#ifdef CPU_BACKEND_ENABLE
+#   include <mekil/cpu_backend.hpp>
+#endif
+#ifdef GPU_BACKEND_ENABLE
+#   include <cpp_cuda/gpu_backend.hpp>
+#endif
 
 bool verbose = false;
 

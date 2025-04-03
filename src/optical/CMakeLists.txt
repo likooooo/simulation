@@ -1,10 +1,12 @@
 find_package(cpp_cuda)
 if(cpp_cuda_FOUND)
     set(backend_deps cpp_cuda::cpp_cuda)
+    add_definitions(-DGPU_BACKEND_ENABLE=1)
 endif()
 find_package(mekil REQUIRED)
 if(mekil_FOUND)
     set(backend_deps ${backend_deps} mekil::mekil)
+    add_definitions(-DCPU_BACKEND_ENABLE=1)
 endif()
 
 file(GLOB tests ${CMAKE_CURRENT_LIST_DIR}/test_*.cpp)
