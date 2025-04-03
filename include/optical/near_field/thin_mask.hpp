@@ -46,15 +46,15 @@ namespace near_filed
     }
 }
 
-template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
+template<class T, class Image = std::vector<T>> struct thin_mask
 {
     using cT = complex_t<T>;
     using rT = real_t<T>;
-    constexpr static init_image<Image, TMeta> gen_image{};
-    static std::tuple<Image, Image, TMeta> edge_pixelization(const TMeta& info, const std::vector<poly_dbu>& polys, size_t USF = 8, rT dissect_coef = 0.5)
+    constexpr static init_image<Image, grid_info_in_dbu> gen_image{};
+    static std::tuple<Image, Image, grid_info_in_dbu> edge_pixelization(const grid_info_in_dbu& info, const std::vector<poly_dbu>& polys, size_t USF = 8, rT dissect_coef = 0.5)
     {
         auto [x, mask_info] = gen_image(info, USF);
-        print_grid_start_step<TMeta, debug_print<thin_mask>>(mask_info, "intergral image");
+        print_grid_start_step<grid_info_in_dbu, debug_print<thin_mask>>(mask_info, "intergral image");
         auto y = x;
         const auto& start = mask_info.spatial.start;
         const auto& step = mask_info.spatial.step;
@@ -92,11 +92,11 @@ template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
         }
         return {x, y, mask_info};
     }
-    static std::tuple<Image, TMeta> get_edge_from_rasterization(const TMeta& info, const Image& image, const cutline_dbu& cutline, size_t USF = 1)
+    static std::tuple<Image, grid_info_in_dbu> get_edge_from_rasterization(const grid_info_in_dbu& info, const Image& image, const cutline_dbu& cutline, size_t USF = 1)
     {
         const auto& [start, step] = info.spatial;
         const auto& [from, to] = (cutline - start);
-        TMeta cutline_meta = info;
+        grid_info_in_dbu cutline_meta = info;
         cutline_meta.spatial.start = cutline[0];
         cutline_meta.spatial.step = step / USF;
         
@@ -127,6 +127,10 @@ template<class T, class TMeta, class Image = std::vector<T>> struct thin_mask
                 image.at((iy + 1) * info.tilesize[0] + ix + 1) * coefx[1] * coefy[1];
             }
         );
+        // TODO : shift image center to cutline center
+        auto image_center = cutline_meta.spatial.step * cutline_meta.tilesize /2 ;
+        auto cutline_center = (cutline[1] - cutline[0])/2 ;
+        print_table(std::vector<std::tuple<point_dbu, point_dbu>>{std::tuple<point_dbu, point_dbu>(image_center, cutline_center)}, {"image center", "cutline center"});
         return {line, cutline_meta};
     }
 };

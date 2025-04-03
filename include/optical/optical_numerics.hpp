@@ -90,3 +90,70 @@ template<class T> inline grid_start_step<T> bloch_optical_numerics(rectangle<T> 
     grid.spatial.step = (spatial_domain[1] - spatial_domain[0]) / grid.tilesize;
     return grid;
 }
+
+#include "geometry.hpp"
+template<class T> struct dbu_grid_start_step
+{
+    using value_type = int64_t;
+    constexpr static size_t dim = 2;
+    template<size_t DIM1> using rebind_t = grid_start_step<int64_t, DIM1>; 
+    struct StartStep{point_dbu start, step;}spatial;
+    typename grid_start_step<T, dim>::StartStep fourier;
+    vec<size_t, dim> tilesize;
+};
+using grid_info_in_dbu = dbu_grid_start_step<double>;
+template<class TUserConfig> grid_info_in_dbu optical_numerics_in_dbu(cutline_dbu cutline, const TUserConfig& config)
+{
+    auto roi = convert<cutline_dbu, rectangle<double>>{}(cutline);
+    dbu_to_um(roi, config.dbu);
+    auto grid_in_um = optical_numerics<double>(roi, config.ambit, config.tilesize, config.maxNA, config.wavelength); 
+    print_grid_start_step(grid_in_um, "origin grid-um");
+
+    //== 1. spatial step
+    um_to_dbu(grid_in_um.spatial.step, config.dbu);
+    vec2<int64_t> spatial_step_in_dbu = {int64_t(std::floor(grid_in_um.spatial.step[0])), int64_t(std::floor(grid_in_um.spatial.step[1]))};
+    //== 2. spatial domain & start
+    auto tile_size = convert<vec2<size_t>, vec2<int64_t>>{}(config.tilesize);
+    vec2<int64_t> spatial_domain_in_dbu = tile_size * spatial_step_in_dbu;
+    const auto& [from_in_dbu, to_in_dbu] = cutline;
+    vec2<int64_t> spatial_start_in_dbu = ((from_in_dbu + to_in_dbu - spatial_domain_in_dbu) + 1) / 2; 
+    
+    //== check tilesize
+    vec2<double> ambit = config.ambit; um_to_dbu(ambit, config.dbu);
+    vec2<int64_t> ambit_in_dbu = {int64_t(std::ceil(ambit[0])), int64_t(std::ceil(ambit[1]))};
+    vec2<int64_t> span_in_dbu = to_in_dbu - from_in_dbu;
+    int64_t length_in_dbu = std::max(span_in_dbu[0], span_in_dbu[1]);
+    span_in_dbu = {length_in_dbu, length_in_dbu};
+    if((spatial_domain_in_dbu - (ambit_in_dbu * 2)) < span_in_dbu)
+    {
+        print_table(std::cerr, std::vector<std::tuple<std::string, vec2<int64_t>>>{
+            std::make_tuple(std::string("roi from       :"), from_in_dbu), 
+            std::make_tuple(std::string("roi to         :"), to_in_dbu),
+            std::make_tuple(std::string("ambit          :"), ambit_in_dbu),
+            std::make_tuple(std::string("spatial domain :"), spatial_domain_in_dbu),
+            std::make_tuple(std::string("need more tile :"), ((to_in_dbu - from_in_dbu) - (spatial_domain_in_dbu - (ambit_in_dbu * 2))) / spatial_step_in_dbu),
+        }, {"* roi or ambit is too large", ""});
+    }
+    grid_info_in_dbu grid_in_dbu;
+    // grid_start_step<double> grid_in_dbu;
+    grid_in_dbu.tilesize = config.tilesize;
+    grid_in_dbu.spatial.start = spatial_start_in_dbu;
+    grid_in_dbu.spatial.step  = spatial_step_in_dbu; 
+    double lambda_in_dbu      = config.wavelength; 
+    um_to_dbu(lambda_in_dbu, config.dbu);
+    grid_in_dbu.fourier.step  = vec2<double>{lambda_in_dbu, lambda_in_dbu} / spatial_domain_in_dbu;
+    grid_in_dbu.fourier.start = vec2<double>{0, 0}; 
+    
+    if(debug_unclassified::verbose())
+    {
+        grid_start_step<double> grid_to_um;
+        grid_to_um.tilesize      = grid_in_dbu.tilesize; 
+        grid_to_um.fourier       = grid_in_dbu.fourier;
+        grid_to_um.spatial.start = convert_to<vec2<double>>(grid_in_dbu.spatial.start); 
+        grid_to_um.spatial.step  = convert_to<vec2<double>>(grid_in_dbu.spatial.step); 
+        dbu_to_um(grid_to_um.spatial.start, config.dbu);
+        dbu_to_um(grid_to_um.spatial.step, config.dbu);
+        print_grid_start_step(grid_to_um, "grid-dbu-aligined to grid-um");
+    }
+    return grid_in_dbu;
+}
