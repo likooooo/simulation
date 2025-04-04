@@ -107,7 +107,7 @@ template<class TUserConfig> grid_info_in_dbu optical_numerics_in_dbu(cutline_dbu
     auto roi = convert<cutline_dbu, rectangle<double>>{}(cutline);
     dbu_to_um(roi, config.dbu);
     auto grid_in_um = optical_numerics<double>(roi, config.ambit, config.tilesize, config.maxNA, config.wavelength); 
-    print_grid_start_step(grid_in_um, "origin grid-um");
+    // print_grid_start_step(grid_in_um, "   origin grid-um");
 
     //== 1. spatial step
     um_to_dbu(grid_in_um.spatial.step, config.dbu);
@@ -132,7 +132,7 @@ template<class TUserConfig> grid_info_in_dbu optical_numerics_in_dbu(cutline_dbu
             std::make_tuple(std::string("ambit          :"), ambit_in_dbu),
             std::make_tuple(std::string("spatial domain :"), spatial_domain_in_dbu),
             std::make_tuple(std::string("need more tile :"), ((to_in_dbu - from_in_dbu) - (spatial_domain_in_dbu - (ambit_in_dbu * 2))) / spatial_step_in_dbu),
-        }, {"* roi or ambit is too large", ""});
+        }, {"*    roi or ambit is too large", ""});
     }
     grid_info_in_dbu grid_in_dbu;
     // grid_start_step<double> grid_in_dbu;
@@ -153,7 +153,14 @@ template<class TUserConfig> grid_info_in_dbu optical_numerics_in_dbu(cutline_dbu
         grid_to_um.spatial.step  = convert_to<vec2<double>>(grid_in_dbu.spatial.step); 
         dbu_to_um(grid_to_um.spatial.start, config.dbu);
         dbu_to_um(grid_to_um.spatial.step, config.dbu);
-        print_grid_start_step(grid_to_um, "grid-dbu-aligined to grid-um");
+        static bool alread_printted = false;
+        if(!alread_printted){
+            alread_printted = true;
+            print_grid_start_step(grid_to_um, "    simulation domain(um)");
+        }
+        else{
+            debug_unclassified::out("*    simulation domain(um)\nspatial start :              ", grid_to_um.spatial.start);
+        }
     }
     return grid_in_dbu;
 }

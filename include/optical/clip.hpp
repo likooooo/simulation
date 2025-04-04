@@ -10,7 +10,7 @@ struct cutline_data
     py::object ref_names;
     std::vector<double> others;
     cutline_data() = default;
-    using print_type = std::tuple<cutline_dbu, int ,int, double, std::vector<double>>;
+    using print_type = std::tuple<cutline_dbu, int , double, double, std::vector<double>>;
     print_type to_tuple() const
     {
         return std::make_tuple(cutline, polar, measured_cd, weight, others);
@@ -19,11 +19,11 @@ struct cutline_data
     {
         std::vector<print_type> rows; rows.reserve(lines.size());
         std::transform(lines.begin(), lines.end(), std::back_insert_iterator(rows), [](const auto& l){return l.to_tuple();});
-        debug_unclassified(rows, {"cutline", "polar", "measured-cd", "weight", "others"});
+        debug_unclassified(rows, {"cutline(dbu)", "polar", "measured-cd(um)", "weight", "others"});
         if(PyList_Check(lines.front().ref_names.ptr()))
         {
             auto ref_names = convert_to<std::vector<std::string>>(lines.front().ref_names);
-            debug_unclassified::out("others is", ref_names);
+            debug_unclassified::out("    others is", ref_names);
         }
 
     }
@@ -55,11 +55,8 @@ struct cutline_data
             temp.weight = convert_to<double>(line["weight"]);
             gg_basic_table.push_back(temp);
         }    
-        
-        cutline_data::print(gg_basic_table);
         return gg_basic_table;
     }
-
 };
 struct user_config
 {
@@ -114,5 +111,11 @@ struct clip_data
         auto workspace = py_plugin::exec(cmd);
         std::string workdir = py::extract<std::string>(workspace["workdir"]);
         return clip_data{workdir, workspace};
+    }
+    std::filesystem::path clip_workdir(size_t n) const{
+        std::filesystem::path dir(workdir);
+        dir /= std::to_string(n);
+        if (!std::filesystem::exists(dir)) assert(std::filesystem::create_directories(dir));
+        return dir;
     }
 };

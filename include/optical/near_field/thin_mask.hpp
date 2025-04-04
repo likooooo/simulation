@@ -54,7 +54,6 @@ template<class T, class Image = std::vector<T>> struct thin_mask
     static std::tuple<Image, Image, grid_info_in_dbu> edge_pixelization(const grid_info_in_dbu& info, const std::vector<poly_dbu>& polys, size_t USF = 8, rT dissect_coef = 0.5)
     {
         auto [x, mask_info] = gen_image(info, USF);
-        print_grid_start_step<grid_info_in_dbu, debug_print<thin_mask>>(mask_info, "intergral image");
         auto y = x;
         const auto& start = mask_info.spatial.start;
         const auto& step = mask_info.spatial.step;
@@ -128,10 +127,9 @@ template<class T, class Image = std::vector<T>> struct thin_mask
                 image.at((iy + 1) * info.tilesize[0] + ix + 1) * coefx[1] * coefy[1];
             }
         );
-        // auto image_center = cutline_meta.spatial.step * cutline_meta.tilesize /2 ;
-        // auto cutline_center = (cutline[1] - cutline[0])/2 ;
-        // std::cout << "    TODO : shift cutline in x-direction " << dbu_to_um(double(cutline_meta.spatial.step[0] / 2) + double(image_center[0] -  cutline_center[1]), 0.00025) << "um"<< std::endl;
-        // print_table(std::vector<std::tuple<point_dbu, point_dbu>>{std::tuple<point_dbu, point_dbu>(image_center, cutline_center)}, {"image center", "cutline center"});
+        auto image_center = cutline_meta.spatial.step * cutline_meta.tilesize /2 ;
+        auto cutline_center = (cutline[1] - cutline[0])/2 ;
+        error_unclassified::out("    offset is ", dbu_to_um(double(image_center[0] -  cutline_center[0]), 0.25), "(nm)", " image_center=", image_center, "(dbu) cutline_center=", cutline_center, "(dbu)");
         return {line, cutline_meta};
     }
 };

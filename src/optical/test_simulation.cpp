@@ -25,6 +25,7 @@ int main()
     add_path_to_sys_path("core_plugins");
     catch_py_error(simulation_flow("/home/like/repos/simulation/config/calib_193.py"));
     py_engine::dispose();
+    printf("simulation end\n");
 }
 BOOST_PYTHON_MODULE(lib_test_simulation) {
     py_engine::init();
@@ -46,43 +47,30 @@ std::tuple<std::vector<double>, grid_info_in_dbu> do_cutline_job(const std::stri
     //== load subclip
     using thin_mask_solver = thin_mask<double>;
     shapes_dbu shapes = near_filed::load_shapes_from_file(oas_path.c_str(), user_config.cell_name, user_config.layer_id);
-    debug_print<thin_mask_solver>::verbose() = user_config.verbose();
+    // debug_print<thin_mask_solver>::verbose() = user_config.verbose();
     auto [x, y, mask_info] = thin_mask_solver::edge_pixelization(startstep_in_dbu, shapes, convert_to<size_t>(params_optional["mask_USF"]),  convert_to<double>(params_optional["mask_edge_dissect_coef"]));
+    print_grid_start_step<grid_info_in_dbu, debug_print<thin_mask_solver>>(mask_info, "    intergral image");
     backend.integral_y(mask_info.tilesize, x.data());
     backend.integral_x(mask_info.tilesize, y.data());
     backend.VtAdd(x.size(), x.data(), y.data());
 
     auto [edge_image, cutline_meta] = thin_mask_solver::get_edge_from_rasterization(mask_info, y, cutline);
     if(std::filesystem::path(oas_path).stem().string() == std::to_string(user_config.vb))
-    {
-        imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
-        auto start = dbu_to_um(convert_to<vec2<float>>(cutline_meta.spatial.start), user_config.dbu);
-        auto step = dbu_to_um(convert_to<vec2<float>>(cutline_meta.spatial.step), user_config.dbu);
-        // plot_curves(std::vector<std::vector<double>>{cutline}, {start[0]}, {float(step[0])}, {"cutline (um)"}, {"b--"});  
-        auto center = dbu_to_um((cutline[0] + cutline[1]) / 2, user_config.dbu);
-        auto [features_in_dbu, dir] = get_feature_pos_from_cutline(cutline, data.measured_cd, cutline_meta.spatial.start, cutline_meta.spatial.step);
-        auto features = dbu_to_um(convert_to<vec<float, 5>>(features_in_dbu), user_config.dbu);
-        features += start[dir];
-        plot_curves(std::vector<std::vector<double>>{
-            edge_image, std::vector<double>{1}, std::vector<double>{0.5, 0.5}, std::vector<double>{0.25, 0.25}}, 
-            {start[dir], features[0], features[1], features[3]}, 
-            {step[dir], step[dir] , features[2] - features[1], features[4] - features[3]}, 
-            {"cutline (um)", "center", "on", "out"}, {"b--", "r-x", "g--x", "r--x"});  
-    }
-    std::cout << "cutline of " << oas_path << " is " << edge_image << std::endl;
+        display_cutline(data, edge_image, cutline_meta.spatial.start, cutline_meta.spatial.step, user_config.dbu, 0.49096);
+    debug_unclassified::out("    cutline of ", std::filesystem::path(oas_path).filename(), " is ", edge_image);
     return {edge_image, cutline_meta};
 }
 
 void simulation_flow(const std::string& config_path)
 {
-    debug_unclassified::verbose() = true;
 
     //== user settings
     auto [user_config, user_config_table] = user_config::load_form_file(config_path);
     
     //== load gauge file
     auto gg_table = cutline_data::load_gauge_file(user_config.gauge_file, user_config.dbu);
-   
+    cutline_data::print(gg_table);
+
     //== calc startstep
     auto startstep_in_dbu = optical_numerics_in_dbu(gg_table.at(0).cutline, user_config);
    
@@ -91,18 +79,24 @@ void simulation_flow(const std::string& config_path)
         convert_to<vec2<double>>((startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize)) * user_config.dbu
     );
    
+    debug_unclassified::verbose() = true;
     //== calc cutline
-    std::vector<std::vector<std::vector<double>>> edges;
+    std::vector<terms_cutline<double>> edges;
     edges.reserve(gg_table.size());
+    std::vector<std::vector<vec<double, 5>>> cutline_features;
     for(size_t i = 0; i < gg_table.size(); i++)
     {
         auto [edge_image, meta] = do_cutline_job(clip.clip_path(i), gg_table.at(i), user_config, user_config_table);
-        edges.push_back(std::vector<std::vector<double>>{edge_image});
+        edge_image *= gg_table.at(i).polar;
+        edges.push_back(terms_cutline<double>{edge_image});
         auto [start, step] = meta.spatial;
-        std::cout << "features=" << get_feature_intensity_from_cutline<double>(
+        auto features = get_feature_intensity_from_cutline<double>(
             gg_table.at(i).cutline, 
-            gg_table.at(i).measured_cd,
+            um_to_dbu((const double)gg_table.at(i).measured_cd, user_config.dbu),
             edges.back(), start, step
-        ) << std::endl;
+        );
+        cutline_features.push_back(features);
+        debug_unclassified::out("    features is ", features);
     }
+    std::cout << "    optical threshold is " << resist_least_squares<double>::calib_optical_threshold(gg_table, cutline_features) << std::endl;
 }
