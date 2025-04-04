@@ -3,6 +3,7 @@
 
 struct cutline_data
 {
+    std::string pattern_name;
     cutline_dbu cutline;
     int polar;
     double measured_cd;
@@ -10,16 +11,16 @@ struct cutline_data
     py::object ref_names;
     std::vector<double> others;
     cutline_data() = default;
-    using print_type = std::tuple<cutline_dbu, int , double, double, std::vector<double>>;
+    using print_type = std::tuple<std::string, cutline_dbu, int , double, double, std::vector<double>>;
     print_type to_tuple() const
     {
-        return std::make_tuple(cutline, polar, measured_cd, weight, others);
+        return std::make_tuple(pattern_name, cutline, polar, measured_cd, weight, others);
     }
     static void print(const std::vector<cutline_data>& lines)
     {
         std::vector<print_type> rows; rows.reserve(lines.size());
         std::transform(lines.begin(), lines.end(), std::back_insert_iterator(rows), [](const auto& l){return l.to_tuple();});
-        debug_unclassified(rows, {"cutline(dbu)", "polar", "measured-cd(um)", "weight", "others"});
+        debug_unclassified(rows, {"pattern-name", "cutline(dbu)", "polar", "measured-cd(um)", "weight", "others"});
         if(PyList_Check(lines.front().ref_names.ptr()))
         {
             auto ref_names = convert_to<std::vector<std::string>>(lines.front().ref_names);
@@ -29,7 +30,8 @@ struct cutline_data
     }
     static void regist_geometry_pyclass()
     {
-        py::class_<cutline_data>("cutline_data").def(py::init<>())
+        py::class_<cutline_data>("cutline_data").def(py::init<>())       
+            .def_readwrite("pattern_name",& cutline_data::pattern_name)
             .def_readwrite("cutline",& cutline_data::cutline)
             .def_readwrite("polar",& cutline_data::polar)
             .def_readwrite("measured_cd",& cutline_data::measured_cd)
@@ -49,6 +51,7 @@ struct cutline_data
         {
             pyobject_wrapper line(lines[i]);
             cutline_data temp;
+            temp.pattern_name = convert_to<std::string>(line["pattern_name"]);
             temp.cutline = convert_to<cutline_dbu>(line["cutline"]);
             temp.polar = convert_to<int>(line["polar"]);
             temp.measured_cd = convert_to<double>(line["measured_cd"]);
@@ -96,21 +99,28 @@ struct user_config
 struct clip_data
 {
     std::string workdir;
-    py::object workspace;
     clip_data() = default;
     std::filesystem::path clip_path(size_t n) const{
         return std::filesystem::path(workdir) / (std::to_string(n) + ".oas");
     }
-    static clip_data cutline_clip_flow(const user_config& config, vec2<double> shape_in_um)
+    static clip_data cutline_clip_flow(const user_config& config, const std::vector<cutline_data>& table, vec2<double> shape_in_um)
     {
-        std::vector<std::string> cmd {"./core_plugins/gauge_io.py",
-            config.gauge_file, config.oas_file, config.cell_name, std::to_string(config.layer_id),
-            "--shape", std::to_string(shape_in_um[0]) + ", " + std::to_string(shape_in_um[1]), 
-            "--verbose", std::to_string(config.vb)
-        };
-        auto workspace = py_plugin::exec(cmd);
-        std::string workdir = py::extract<std::string>(workspace["workdir"]);
-        return clip_data{workdir, workspace};
+        std::vector<double> cutlines_in_um;
+        cutlines_in_um.reserve(4 * table.size());
+        for(const auto& t : table)
+        {
+            auto [from, to] = t. cutline;
+            cutlines_in_um.push_back(config.dbu * from[0]);
+            cutlines_in_um.push_back(config.dbu * from[1]);
+            cutlines_in_um.push_back(config.dbu * to[0]);
+            cutlines_in_um.push_back(config.dbu * to[1]);
+        }
+
+        py::object str = py_plugin::ref()["gauge_io"]["clip_flow"](
+            create_ndarray_from_vector(cutlines_in_um, {4, int(table.size())}), 
+            config.oas_file, config.cell_name, config.layer_id, shape_in_um, config.vb
+        );
+        return clip_data{py::extract<std::string>(str)};
     }
     std::filesystem::path clip_workdir(size_t n) const{
         std::filesystem::path dir(workdir);

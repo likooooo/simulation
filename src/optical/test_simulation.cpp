@@ -55,9 +55,24 @@ std::tuple<std::vector<double>, grid_info_in_dbu> do_cutline_job(const std::stri
     backend.VtAdd(x.size(), x.data(), y.data());
 
     auto [edge_image, cutline_meta] = thin_mask_solver::get_edge_from_rasterization(mask_info, y, cutline);
-    if(std::filesystem::path(oas_path).stem().string() == std::to_string(user_config.vb))
-        display_cutline(data, edge_image, cutline_meta.spatial.start, cutline_meta.spatial.step, user_config.dbu, 0.49096);
-    debug_unclassified::out("    cutline of ", std::filesystem::path(oas_path).filename(), " is ", edge_image);
+    using print_type = std::tuple<std::string, std::string, vec2<double>, double, std::vector<double>>;
+    std::vector<print_type> rows{
+        print_type(
+            std::filesystem::path(oas_path).filename(), 
+            data.pattern_name, 
+            dbu_to_um(convert_to<vec2<double>>(cutline_meta.spatial.start), user_config.dbu), 
+            data.weight,
+            edge_image
+        )
+    };
+    debug_unclassified(rows, {"path", "pattern-name", "start(um)", "weight", "intensity"}, -1);
+    // if(std::filesystem::path(oas_path).stem().string() == std::to_string(user_config.vb))
+    auto cutline_debug_list = convert_to<std::vector<int>>(params_optional["cutline_debug_list"]);
+    if(std::find(cutline_debug_list.begin(), cutline_debug_list.end(), std::stoi(std::filesystem::path(oas_path).stem().string())) != cutline_debug_list.end())
+    {
+        display_cutline(data, edge_image, cutline_meta.spatial.start, cutline_meta.spatial.step, user_config.dbu,  convert_to<double>(params_optional["threshold_guess"]));
+        imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
+    }
     return {edge_image, cutline_meta};
 }
 
@@ -75,7 +90,7 @@ void simulation_flow(const std::string& config_path)
     auto startstep_in_dbu = optical_numerics_in_dbu(gg_table.at(0).cutline, user_config);
    
     //== cutline subclip
-    auto clip = clip_data::cutline_clip_flow(user_config, 
+    auto clip = clip_data::cutline_clip_flow(user_config, gg_table,
         convert_to<vec2<double>>((startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize)) * user_config.dbu
     );
    
@@ -86,8 +101,8 @@ void simulation_flow(const std::string& config_path)
     std::vector<std::vector<vec<double, 5>>> cutline_features;
     for(size_t i = 0; i < gg_table.size(); i++)
     {
+        if(gg_table.at(i).weight == 0) continue;
         auto [edge_image, meta] = do_cutline_job(clip.clip_path(i), gg_table.at(i), user_config, user_config_table);
-        edge_image *= gg_table.at(i).polar;
         edges.push_back(terms_cutline<double>{edge_image});
         auto [start, step] = meta.spatial;
         auto features = get_feature_intensity_from_cutline<double>(

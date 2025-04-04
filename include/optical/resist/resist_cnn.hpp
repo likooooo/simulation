@@ -32,8 +32,8 @@ struct resist_least_squares
             const terms_features_intensity<T>& feature = features.at(i);
             T weight = T(gauges.at(i).weight);
             weight = 1;
-            y.at(4 * i + 2) = 1 * weight;
-            y.at(4 * i + 3) = 1 * weight;
+            y.at(4 * i + 2) = gauges.at(i).polar * weight;
+            y.at(4 * i + 3) = gauges.at(i).polar * weight;
 
             T* row = a.data() + i * 4 * x.size();
             for(size_t ix : term_enable){
