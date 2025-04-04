@@ -16,13 +16,14 @@
 
 bool verbose = false;
 
+void regist_geometry_pyclass();
 void simulation_flow(const std::string&);
 int main()
 {
     py_engine::init();
+    cutline_data::regist_geometry_pyclass();
     add_path_to_sys_path("core_plugins");
-    catch_py_error
-    (simulation_flow("/home/like/repos/simulation/config/calib_193.py"));
+    catch_py_error(simulation_flow("/home/like/repos/simulation/config/calib_193.py"));
     py_engine::dispose();
 }
 BOOST_PYTHON_MODULE(lib_test_simulation) {
@@ -31,43 +32,12 @@ BOOST_PYTHON_MODULE(lib_test_simulation) {
     py::def("simulation", &simulation_flow);
 }
 
-struct cutline_data
-{
-    cutline_dbu cl;
-    int64_t design_cd;
-    double weight;
-    std::shared_ptr<std::vector<std::string>> ref_names;
-    std::vector<double> others;
-};
-
-std::vector<cutline_data> load_gauge_file(const std::string& path)
-{
-    // read_gauge_file
-    py::list_tuple gauge_table = convert_to<py::list_tuple>(py_plugin::ref()["gauge_io"]["read_gauge_file"](path));
-    np::array2df cutlines_in_dbu = convert_to<np::array2df>(py_plugin::ref()["gauge_io"]["get_culine_from_gauge_table"](gauge_table, 1));
-    np::array2di design_cd = convert_to<np::array2df>(py_plugin::ref()["gauge_io"]["get_design_cd"](gauge_table));
-    auto [pRec, n] = ndarray_ref_no_padding<vec<double, 4>>(cutlines_in_dbu);
-    auto [pCD, n1] = ndarray_ref_no_padding<vec<int64_t, 1>>(design_cd);
-    assert(n == n1);
-    std::vector<cutline_data> gg_table; 
-    gg_table.reserve(n);
-    for(size_t i = 0; i < n; i++, pRec++, pCD++){
-        const auto& rec = *pRec;
-        cutline_data data;
-        data.cl = cutline_dbu{
-            static_cast<int64_t>(rec[0]), static_cast<int64_t>(rec[1]), 
-            static_cast<int64_t>(rec[2]), static_cast<int64_t>(rec[3])
-        };
-        data.design_cd = (*pCD)[0];
-        gg_table.push_back(data);
-    }
-    return gg_table;
-}
 
 // const uca::backend<double>& backend = uca::cpu<double>::ref();
 const uca::backend<double>& backend = uca::cpu<double>::ref();
-std::tuple<std::vector<double>, grid_info_in_dbu> do_cutline_job(const std::string& oas_path, const cutline_dbu& cutline, const cutline_jobs::user_config& user_config ,const py::object params_optional)
+std::tuple<std::vector<double>, grid_info_in_dbu> do_cutline_job(const std::string& oas_path, const cutline_data& data, const user_config& user_config, const py::object params_optional)
 {
+    const cutline_dbu& cutline = data.cutline;
     auto startstep_in_dbu = optical_numerics_in_dbu(cutline, user_config);
    
     //== cutline subclip
@@ -83,13 +53,21 @@ std::tuple<std::vector<double>, grid_info_in_dbu> do_cutline_job(const std::stri
     backend.VtAdd(x.size(), x.data(), y.data());
 
     auto [edge_image, cutline_meta] = thin_mask_solver::get_edge_from_rasterization(mask_info, y, cutline);
-    if(user_config.verbose())
+    if(std::filesystem::path(oas_path).stem().string() == std::to_string(user_config.vb))
     {
         imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
         auto start = dbu_to_um(convert_to<vec2<float>>(cutline_meta.spatial.start), user_config.dbu);
         auto step = dbu_to_um(convert_to<vec2<float>>(cutline_meta.spatial.step), user_config.dbu);
         // plot_curves(std::vector<std::vector<double>>{cutline}, {start[0]}, {float(step[0])}, {"cutline (um)"}, {"b--"});  
-        plot_curves(std::vector<std::vector<double>>{edge_image}, {0}, {float(1)}, {"cutline (pixel)"}, {"b--"});  
+        auto center = dbu_to_um((cutline[0] + cutline[1]) / 2, user_config.dbu);
+        auto [features_in_dbu, dir] = get_feature_pos_from_cutline(cutline, data.measured_cd, cutline_meta.spatial.start, cutline_meta.spatial.step);
+        auto features = dbu_to_um(convert_to<vec<float, 5>>(features_in_dbu), user_config.dbu);
+        features += start[dir];
+        plot_curves(std::vector<std::vector<double>>{
+            edge_image, std::vector<double>{1}, std::vector<double>{0.5, 0.5}, std::vector<double>{0.25, 0.25}}, 
+            {start[dir], features[0], features[1], features[3]}, 
+            {step[dir], step[dir] , features[2] - features[1], features[4] - features[3]}, 
+            {"cutline (um)", "center", "on", "out"}, {"b--", "r-x", "g--x", "r--x"});  
     }
     std::cout << "cutline of " << oas_path << " is " << edge_image << std::endl;
     return {edge_image, cutline_meta};
@@ -97,27 +75,34 @@ std::tuple<std::vector<double>, grid_info_in_dbu> do_cutline_job(const std::stri
 
 void simulation_flow(const std::string& config_path)
 {
-    auto [user_config, params] = cutline_jobs::get_user_config(config_path);
-    //== load gauge file & calc startstep
-    auto gg_table = load_gauge_file(user_config.gauge_file);
+    debug_unclassified::verbose() = true;
 
-    auto startstep_in_dbu = optical_numerics_in_dbu(gg_table.at(0).cl, user_config);
+    //== user settings
+    auto [user_config, user_config_table] = user_config::load_form_file(config_path);
+    
+    //== load gauge file
+    auto gg_table = cutline_data::load_gauge_file(user_config.gauge_file, user_config.dbu);
+   
+    //== calc startstep
+    auto startstep_in_dbu = optical_numerics_in_dbu(gg_table.at(0).cutline, user_config);
    
     //== cutline subclip
-    auto shape = convert_to<vec2<double>>((startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize)) * user_config.dbu;
-    cutline_jobs jobs = cutline_jobs::cutline_clip_flow(user_config, shape);
+    auto clip = clip_data::cutline_clip_flow(user_config, 
+        convert_to<vec2<double>>((startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize)) * user_config.dbu
+    );
+   
+    //== calc cutline
     std::vector<std::vector<std::vector<double>>> edges;
     edges.reserve(gg_table.size());
     for(size_t i = 0; i < gg_table.size(); i++)
     {
-        auto [edge_image, meta] = do_cutline_job(jobs.clip_path(i), gg_table.at(i).cl, user_config, params);
+        auto [edge_image, meta] = do_cutline_job(clip.clip_path(i), gg_table.at(i), user_config, user_config_table);
         edges.push_back(std::vector<std::vector<double>>{edge_image});
         auto [start, step] = meta.spatial;
-        std::cout << "features=" << get_feature_intensity_from_cutline<double>(gg_table.at(i).cl, gg_table.at(i).design_cd, edges.back(), start, step) << std::endl;
+        std::cout << "features=" << get_feature_intensity_from_cutline<double>(
+            gg_table.at(i).cutline, 
+            gg_table.at(i).measured_cd,
+            edges.back(), start, step
+        ) << std::endl;
     }
 }
-
-// void a(cutline_dbu cutline, int64_t design_cd, const std::vector<std::vector<double>>& yArray, point_dbu start, point_dbu step)
-// {
-//     get_feature_intensity_from_cutline<double>(cutline, design_cd, yArray, start, step);
-// }

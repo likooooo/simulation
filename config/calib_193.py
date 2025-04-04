@@ -1,9 +1,9 @@
-verbose = -1
+verbose = 0
 wavelength = 0.193 # um
 
-tilesize, ambit = [8, 8], [wavelength * 0, wavelength* 0]
+tilesize, ambit = [256,256], [wavelength * 0, wavelength* 0]
 maxNA, maxSigma = 1.2, 0
-gauge_file = "/home/like/model_data/X_File/LG40_poly_File/LG40_PC_CDU_7.ss"
+gauge_file = "/home/like/model_data/X_File/LG40_poly_File/LG40_PC_CDU_2.ss"
 oas_file = "/home/like/model_data/X_File/LG40_poly_File/LG40_PC_CDU_Contour_Mask_L300.oas"
 cell_name, layer_id, dbu = "JDV_M", 300, 0.00025
 mask_USF = 8

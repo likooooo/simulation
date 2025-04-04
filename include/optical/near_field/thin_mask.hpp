@@ -60,24 +60,25 @@ template<class T, class Image = std::vector<T>> struct thin_mask
         const auto& step = mask_info.spatial.step;
         auto roi = cutline_dbu{point_dbu{0,0}, step * mask_info.tilesize};
         auto interpolate_to = [&](Image& im, cutline_dbu edge, point_dbu norm_dir){
-            rT sign = (norm_dir[0] + norm_dir[1]);
+            rT sign = rT(-1) * (norm_dir[0] + norm_dir[1]);
+            int dirx = 1;
+            int diry = 1;
+            if(norm_dir == point_dbu{0, 1}) diry += 1;
+            if(norm_dir == point_dbu{1, 0}) dirx += 1;
             dissect_loop<point_dbu::value_type, 2>(edge, step * dissect_coef, 
                 [&](point_dbu current){
                     point_dbu index;
                     index = convert_to<point_dbu>(current / mask_info.spatial.step);
-                    // auto index = convert_to<point_dbu>(floor(current / mask_info.spatial.step));
-                    if(full_compare<point_dbu, vec2<size_t>>::less(index, (mask_info.tilesize - 1)))
-                    {
-                        auto delta = convert_to<vec2<rT>>(current - index * mask_info.spatial.step);
-                        delta /= step;
-                        vec2<rT> coefx = linear_interpolate<rT>::get_coef(delta[0]);
-                        vec2<rT> coefy = linear_interpolate<rT>::get_coef(delta[1]);
-                        auto [ix, iy] = index;
-                        im.at(iy * mask_info.tilesize[0] + ix)           += coefx[0] * coefy[0] * dissect_coef * 0.5 * sign;
-                        im.at(iy * mask_info.tilesize[0] + ix + 1)       += coefx[1] * coefy[0] * dissect_coef * 0.5 * sign;
-                        im.at((iy + 1) * mask_info.tilesize[0] + ix)     += coefx[0] * coefy[1] * dissect_coef * 0.5 * sign;
-                        im.at((iy + 1) * mask_info.tilesize[0] + ix + 1) += coefx[1] * coefy[1] * dissect_coef * 0.5 * sign;
-                    }
+                    if(!full_compare<point_dbu, vec2<size_t>>::less(index, (mask_info.tilesize - point_dbu{dirx, diry}))) return;
+                    auto delta = convert_to<vec2<rT>>(current - index * mask_info.spatial.step);
+                    delta /= step;
+                    vec2<rT> coefx = linear_interpolate<rT>::get_coef(delta[0]);
+                    vec2<rT> coefy = linear_interpolate<rT>::get_coef(delta[1]);
+                    auto [ix, iy] = index;
+                    im.at(iy * mask_info.tilesize[0] + ix)           += coefx[0] * coefy[0] * dissect_coef * 0.5 * sign;
+                    im.at(iy * mask_info.tilesize[0] + ix + dirx)       += coefx[1] * coefy[0] * dissect_coef * 0.5 * sign;
+                    im.at((iy + diry) * mask_info.tilesize[0] + ix)        += coefx[0] * coefy[1] * dissect_coef * 0.5 * sign;
+                    im.at((iy + diry) * mask_info.tilesize[0] + ix + dirx) += coefx[1] * coefy[1] * dissect_coef * 0.5 * sign;
                 }
             );
         };
@@ -127,10 +128,10 @@ template<class T, class Image = std::vector<T>> struct thin_mask
                 image.at((iy + 1) * info.tilesize[0] + ix + 1) * coefx[1] * coefy[1];
             }
         );
-        // TODO : shift image center to cutline center
-        auto image_center = cutline_meta.spatial.step * cutline_meta.tilesize /2 ;
-        auto cutline_center = (cutline[1] - cutline[0])/2 ;
-        print_table(std::vector<std::tuple<point_dbu, point_dbu>>{std::tuple<point_dbu, point_dbu>(image_center, cutline_center)}, {"image center", "cutline center"});
+        // auto image_center = cutline_meta.spatial.step * cutline_meta.tilesize /2 ;
+        // auto cutline_center = (cutline[1] - cutline[0])/2 ;
+        // std::cout << "    TODO : shift cutline in x-direction " << dbu_to_um(double(cutline_meta.spatial.step[0] / 2) + double(image_center[0] -  cutline_center[1]), 0.00025) << "um"<< std::endl;
+        // print_table(std::vector<std::tuple<point_dbu, point_dbu>>{std::tuple<point_dbu, point_dbu>(image_center, cutline_center)}, {"image center", "cutline center"});
         return {line, cutline_meta};
     }
 };
