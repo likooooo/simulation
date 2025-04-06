@@ -53,7 +53,6 @@ std::tuple<std::vector<double>, grid_info_in_dbu> do_cutline_job(const std::stri
     backend.integral_y(mask_info.tilesize, x.data());
     backend.integral_x(mask_info.tilesize, y.data());
     backend.VtAdd(x.size(), x.data(), y.data());
-
     auto [edge_image, cutline_meta] = thin_mask_solver::get_edge_from_rasterization(mask_info, y, cutline);
     using print_type = std::tuple<std::string, std::string, vec2<double>, double, std::vector<double>>;
     std::vector<print_type> rows{
@@ -62,17 +61,21 @@ std::tuple<std::vector<double>, grid_info_in_dbu> do_cutline_job(const std::stri
             data.pattern_name, 
             dbu_to_um(convert_to<vec2<double>>(cutline_meta.spatial.start), user_config.dbu), 
             data.weight,
-            edge_image
+            edge_image 
+            //== TODO : display cutoff
+            //edge_image.size() <= 50 ? edge_image : std::vector<double>(edge_image.begin() + edge_image.size()/2 - 25, edge_image.begin() + edge_image.size()/2 + 25)
         )
     };
     debug_unclassified(rows, {"path", "pattern-name", "start(um)", "weight", "intensity"}, -1);
-    // if(std::filesystem::path(oas_path).stem().string() == std::to_string(user_config.vb))
     auto cutline_debug_list = convert_to<std::vector<int>>(params_optional["cutline_debug_list"]);
     if(std::find(cutline_debug_list.begin(), cutline_debug_list.end(), std::stoi(std::filesystem::path(oas_path).stem().string())) != cutline_debug_list.end())
     {
         display_cutline(data, edge_image, cutline_meta.spatial.start, cutline_meta.spatial.step, user_config.dbu,  convert_to<double>(params_optional["threshold_guess"]));
         imshow(y, convert_to<std::vector<size_t>>(mask_info.tilesize));
+        //== TODO : extract contour
+        // py_plugin::ref()["extract_contours"]["show_contuor"](create_ndarray_from_vector(y, convert_to<std::vector<int>>(mask_info.tilesize)),  convert_to<double>(params_optional["threshold_guess"]));
     }
+
     return {edge_image, cutline_meta};
 }
 
@@ -98,20 +101,30 @@ void simulation_flow(const std::string& config_path)
     //== calc cutline
     std::vector<terms_cutline<double>> edges;
     edges.reserve(gg_table.size());
-    std::vector<std::vector<vec<double, 5>>> cutline_features;
+    grid_info_in_dbu edge_meta;
+    std::vector<terms_features_intensity<double>> cutline_features;
     for(size_t i = 0; i < gg_table.size(); i++)
     {
         if(gg_table.at(i).weight == 0) continue;
-        auto [edge_image, meta] = do_cutline_job(clip.clip_path(i), gg_table.at(i), user_config, user_config_table);
+        const auto& [edge_image, meta] = do_cutline_job(clip.clip_path(i), gg_table.at(i), user_config, user_config_table);
+        edge_meta = meta;
         edges.push_back(terms_cutline<double>{edge_image});
         auto [start, step] = meta.spatial;
+        assert(gg_table.at(i).cutline[0] == start);
+
         auto features = get_feature_intensity_from_cutline<double>(
             gg_table.at(i).cutline, 
-            um_to_dbu((const double)gg_table.at(i).measured_cd, user_config.dbu),
-            edges.back(), start, step
+            gg_table.at(i).measured_cd,
+            edges.back(), start, step, user_config.dbu
         );
         cutline_features.push_back(features);
         debug_unclassified::out("    features is ", features);
     }
-    std::cout << "    optical threshold is " << resist_least_squares<double>::calib_optical_threshold(gg_table, cutline_features) << std::endl;
+    //== threshold
+    double th = resist_least_squares<double>::calib_optical_threshold(gg_table, cutline_features);
+    std::cout << "    optical threshold is " << th << std::endl;
+    
+    //== post calib analyze
+    post_calib_analysis(gg_table, edges, {1}, th, edge_meta.spatial.step, user_config.dbu);
+    cutline_data::print(gg_table);
 }

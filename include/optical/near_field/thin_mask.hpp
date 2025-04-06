@@ -2,7 +2,7 @@
 #include <type_traist_notebook/type_traist.hpp>
 #include <optical/geometry.hpp>
 #include <optical/polynomials.hpp>
-
+// #include <spectrum_analysis.hpp>
 template<class Image, class MetaData> 
 struct init_image
 {
@@ -62,8 +62,8 @@ template<class T, class Image = std::vector<T>> struct thin_mask
             rT sign = rT(-1) * (norm_dir[0] + norm_dir[1]);
             int dirx = 1;
             int diry = 1;
-            if(norm_dir == point_dbu{0, 1}) diry += 1;
-            if(norm_dir == point_dbu{1, 0}) dirx += 1;
+            // if(norm_dir == point_dbu{0, 1}) diry += 1;
+            // if(norm_dir == point_dbu{1, 0}) dirx += 1;
             dissect_loop<point_dbu::value_type, 2>(edge, step * dissect_coef, 
                 [&](point_dbu current){
                     point_dbu index;
@@ -74,10 +74,20 @@ template<class T, class Image = std::vector<T>> struct thin_mask
                     vec2<rT> coefx = linear_interpolate<rT>::get_coef(delta[0]);
                     vec2<rT> coefy = linear_interpolate<rT>::get_coef(delta[1]);
                     auto [ix, iy] = index;
-                    im.at(iy * mask_info.tilesize[0] + ix)           += coefx[0] * coefy[0] * dissect_coef * 0.5 * sign;
-                    im.at(iy * mask_info.tilesize[0] + ix + dirx)       += coefx[1] * coefy[0] * dissect_coef * 0.5 * sign;
-                    im.at((iy + diry) * mask_info.tilesize[0] + ix)        += coefx[0] * coefy[1] * dissect_coef * 0.5 * sign;
-                    im.at((iy + diry) * mask_info.tilesize[0] + ix + dirx) += coefx[1] * coefy[1] * dissect_coef * 0.5 * sign;
+                    // if(norm_dir == point_dbu{0, 1} || norm_dir == point_dbu{1, 0})
+                    {
+                        im.at(iy * mask_info.tilesize[0] + ix)                 += coefx[0] * coefy[0] * dissect_coef * 0.5 * sign;
+                        im.at(iy * mask_info.tilesize[0] + ix + dirx)          += coefx[1] * coefy[0] * dissect_coef * 0.5 * sign;
+                        im.at((iy + diry) * mask_info.tilesize[0] + ix)        += coefx[0] * coefy[1] * dissect_coef * 0.5 * sign;
+                        im.at((iy + diry) * mask_info.tilesize[0] + ix + dirx) += coefx[1] * coefy[1] * dissect_coef * 0.5 * sign;
+                    }
+                    // else{
+                    //     im.at(iy * mask_info.tilesize[0] + ix)           += coefx[1] * coefy[0] * dissect_coef * 0.5 * sign;
+                    //     im.at(iy * mask_info.tilesize[0] + ix + dirx)       += coefx[0] * coefy[0] * dissect_coef * 0.5 * sign;
+                    //     im.at((iy + diry) * mask_info.tilesize[0] + ix)        += coefx[0] * coefy[1] * dissect_coef * 0.5 * sign;
+                    //     im.at((iy + diry) * mask_info.tilesize[0] + ix + dirx) += coefx[1] * coefy[1] * dissect_coef * 0.5 * sign;
+
+                    // }
                 }
             );
         };
@@ -119,7 +129,6 @@ template<class T, class Image = std::vector<T>> struct thin_mask
                 const auto coefx = linear_interpolate<rT>::get_coef(delta[0]);
                 const auto coefy = linear_interpolate<rT>::get_coef(delta[1]);
                 auto [ix, iy] = idx_image;
-                // line.at(idx_cutline[0] + idx_cutline[1]) = image.at(iy * info.tilesize[0] + ix);
                 line.at(idx_cutline[0] + idx_cutline[1]) = 
                 image.at(iy * info.tilesize[0] + ix)           * coefx[0] * coefy[0] +
                 image.at(iy * info.tilesize[0] + ix + 1)       * coefx[1] * coefy[0] +
@@ -127,9 +136,15 @@ template<class T, class Image = std::vector<T>> struct thin_mask
                 image.at((iy + 1) * info.tilesize[0] + ix + 1) * coefx[1] * coefy[1];
             }
         );
-        auto image_center = cutline_meta.spatial.step * cutline_meta.tilesize /2 ;
-        auto cutline_center = (cutline[1] - cutline[0])/2 ;
-        error_unclassified::out("    offset is ", dbu_to_um(double(image_center[0] -  cutline_center[0]), 0.25), "(nm)", " image_center=", image_center, "(dbu) cutline_center=", cutline_center, "(dbu)");
+        auto image_center = cutline_meta.spatial.step * (cutline_meta.tilesize - 1) /2 ;
+        auto cutline_center = (cutline[1] - cutline[0] - 1)/2 ;
+        rT offset =  rT(image_center[0] -  cutline_center[0]) / cutline_meta.spatial.step[0];
+        if(0 != offset)
+        {
+            // line.reserve(line.size() + 2);
+            // shift<T, complex_t<T>, rT>(line.data(), line.size(), 1, offset, 0);
+            error_unclassified::out("    TODO shift ", dbu_to_um(double(image_center[0] -  cutline_center[0]), 0.25), "(nm)", " image_center=", image_center, "(dbu) cutline_center=", cutline_center, "(dbu)");
+        }
         return {line, cutline_meta};
     }
 };

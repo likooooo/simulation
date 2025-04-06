@@ -8,25 +8,20 @@ struct cutline_data
     int polar;
     double measured_cd;
     double weight;
-    py::object ref_names;
-    std::vector<double> others;
+    static inline std::vector<std::string> ref_names;
+    std::vector<double> post_calib_results;
     cutline_data() = default;
     using print_type = std::tuple<std::string, cutline_dbu, int , double, double, std::vector<double>>;
     print_type to_tuple() const
     {
-        return std::make_tuple(pattern_name, cutline, polar, measured_cd, weight, others);
+        return std::make_tuple(pattern_name, cutline, polar, measured_cd, weight, post_calib_results);
     }
     static void print(const std::vector<cutline_data>& lines)
     {
         std::vector<print_type> rows; rows.reserve(lines.size());
         std::transform(lines.begin(), lines.end(), std::back_insert_iterator(rows), [](const auto& l){return l.to_tuple();});
-        debug_unclassified(rows, {"pattern-name", "cutline(dbu)", "polar", "measured-cd(um)", "weight", "others"});
-        if(PyList_Check(lines.front().ref_names.ptr()))
-        {
-            auto ref_names = convert_to<std::vector<std::string>>(lines.front().ref_names);
-            debug_unclassified::out("    others is", ref_names);
-        }
-
+        debug_unclassified(rows, {"pattern-name", "cutline(dbu)", "polar", "measured-cd(dbu)", "weight", "post-calib-results"});
+        debug_unclassified::out("    post-calib-results are ", ref_names);
     }
     static void regist_geometry_pyclass()
     {
@@ -37,7 +32,7 @@ struct cutline_data
             .def_readwrite("measured_cd",& cutline_data::measured_cd)
             .def_readwrite("weight",& cutline_data::weight)
             .def_readwrite("ref_names",& cutline_data::ref_names)
-            .def_readwrite("others",& cutline_data::others);
+            .def_readwrite("post_calib_results",& cutline_data::post_calib_results);
     }
     
     static std::vector<cutline_data> load_gauge_file(const std::string& path, double dbu)
@@ -58,6 +53,9 @@ struct cutline_data
             temp.weight = convert_to<double>(line["weight"]);
             gg_basic_table.push_back(temp);
         }    
+        cutline_data::ref_names = convert_to<std::vector<std::string>>(py_plugin::ref()["gauge_io"]["post_calib_options"]);
+        auto max_weight = std::max_element(gg_basic_table.begin(), gg_basic_table.end(), [](const auto& a, const auto& b){return a.weight < b.weight;})->weight;
+        for(size_t i = 0; i < N; i++) gg_basic_table.at(i).weight /= max_weight;
         return gg_basic_table;
     }
 };

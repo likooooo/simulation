@@ -40,6 +40,7 @@ struct resist_least_squares
                 const auto [in, on_lhs, on_rhs, out_lhs, out_rhs] = feature.at(ix);
                 row[ix]                = weight * (on_lhs);
                 row[x.size() + ix]     = weight * (on_rhs);
+                //== 如果没有下面两个条件, 解出来的 X 全都是 0, 因为 A*0 = 0
                 row[2 * x.size() + ix] = weight * (in - out_lhs);
                 row[3 * x.size() + ix] = weight * (in - out_rhs);
             }
