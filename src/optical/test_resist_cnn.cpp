@@ -69,7 +69,30 @@ struct resis_simulation : simulation_common{
         x.pop_back();
         post_calib_analysis(gg_table, edges, x, threshold, edge_meta.spatial.step, config.dbu);
         cutline_data::print(gg_table);
-        std::cout << "    optical threshold is " << threshold << std::endl;
+        using print_type = std::tuple<std::string, std::string>;
+        std::vector<print_type> rows{
+            print_type("threshold", to_string(threshold)),
+            print_type("coefficients", to_string(x)),
+            print_type("resist-format", to_string(vec3<double>{
+                convert_to<double>(user_config_table["gauss_laguerre_sigma_in_dbu"]), 
+                convert_to<double>(user_config_table["associate_order"]), 
+                convert_to<double>(user_config_table["laguerre_order"])
+            })),
+        };
+        print_table(rows, {"resist model", ""});
+        auto [it_min, it_max] = std::minmax_element(gg_table.begin(), gg_table.end(), [](const cutline_data& a, const cutline_data& b){
+            return a.post_calib_results.at(1) < b.post_calib_results.at(1); 
+        });
+        double start = it_min->post_calib_results.at(1);
+        double end = it_max->post_calib_results.at(1);
+        const size_t N = 100;
+        double step = (end - start) / (N - 1);
+
+        std::vector<double> errors(N, 0);
+        for(const auto& data : gg_table){
+            errors.at(std::floor((data.post_calib_results.at(1) - start)/step)) += 1;
+        }
+        plot_curves(std::vector<std::vector<double>>{errors}, {float(start)},{float(step)}, {"error distribution"}, { "r-x"});  
     }
 };
 
