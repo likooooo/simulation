@@ -132,7 +132,29 @@ template<class T> inline void post_calib_analysis(std::vector<cutline_data>& gau
         data.post_calib_results.push_back(dbu_to_um(sim_cd - data.measured_cd, dbu * 1e3));
     }
 }
-inline void display_cutline(const cutline_data& data, const std::vector<double>& cutline_image,const point_dbu& start_dbu,  const point_dbu& step_dbu, float dbu, float threshold = 0.5)
+inline void display_cutline(const cutline_data& data, const std::vector<double>& cutline_image,const point_dbu& start_dbu, const point_dbu& step_dbu, float dbu)
+{
+    auto cutline = data.cutline;
+    auto start = dbu_to_um(convert_to<vec2<float>>(start_dbu), dbu);
+    auto step = dbu_to_um(convert_to<vec2<float>>(step_dbu), dbu);
+    auto center = dbu_to_um((cutline[0] + cutline[1] - 1) / 2, dbu);
+    auto [features_in_dbu, dir] = get_feature_pos_from_cutline(cutline, data.measured_cd, start_dbu, step_dbu, dbu);
+    auto features = dbu_to_um(convert_to<vec<float, 5>>(features_in_dbu), dbu);
+    features += start[dir];
+    plot_curves(std::vector<std::vector<double>>{
+            cutline_image, std::vector<double>{double(-1 == data.polar ? 0 : 1)}, 
+            std::vector<double>{
+                linear_interpolate<double>::eval(features_in_dbu[1]/ step_dbu[dir], cutline_image), 
+                linear_interpolate<double>::eval(features_in_dbu[2]/ step_dbu[dir], cutline_image)
+                // threshold, threshold
+            }, 
+            std::vector<double>{0.1, 0.1}
+        }, 
+        {start[dir], features[0], features[1],               features[3]}, 
+        {step[dir],  step[dir],   features[2] - features[1], features[4] - features[3]}, 
+        {"cutline (um)", "center", "on", "out", "cd found(linear-interpolate)"}, {"b--", "r-x", "g--o", "b--x", "r--x"});  
+}
+inline void display_cutline_with_cd(const cutline_data& data, const std::vector<double>& cutline_image,const point_dbu& start_dbu,  const point_dbu& step_dbu, float dbu, float threshold = 0.5)
 {
     auto cutline = data.cutline;
     auto start = dbu_to_um(convert_to<vec2<float>>(start_dbu), dbu);

@@ -53,7 +53,7 @@ template<class T>struct resist_blackbox
         LAPACKE_theev(LAPACK_COL_MAJOR, 'V', 'U', eigen_value_count, coef_of_quad.data(), eigen_value_count, eigenval.data());
         return eigenval;
     }
-    static std::tuple<std::vector<std::vector<T>>, std::vector<std::vector<T>>> gauss_laguerre(const std::vector<T>& input, vec2<size_t> shape, real_t<T> sigma, size_t max_associated_order, size_t max_laguerre_order)
+    static std::tuple<std::vector<std::vector<T>>, size_t> gauss_laguerre(const std::vector<T>& input, vec2<size_t> shape, real_t<T> sigma, size_t max_associated_order, size_t max_laguerre_order)
     {
         auto linear = gauss_laguerre_conv_linear(shape, sigma, max_associated_order, max_laguerre_order, [&](std::vector<T>& kernel){
             std::vector<T> k = input;
@@ -62,7 +62,12 @@ template<class T>struct resist_blackbox
             conv<T, complex_t<T>>(kernel.data(), k.data(), shape[1], shape[0]);
             CenterCornerFlip(kernel.data(), shape[0], shape[1]);
         });
-        auto quadratic = gauss_laguerre_conv_quadratic(linear);
-        return std::tuple<std::vector<std::vector<T>>, std::vector<std::vector<T>>>(std::move(linear), std::move(quadratic));
+        size_t N = linear.size();
+        {
+            auto quadratic = gauss_laguerre_conv_quadratic(linear);
+            linear.reserve(linear.size() + quadratic.size());
+            std::copy(quadratic.begin(), quadratic.end(), std::back_insert_iterator(linear));
+        }
+        return std::tuple<std::vector<std::vector<T>>, size_t>(std::move(linear), N);
     }
 };

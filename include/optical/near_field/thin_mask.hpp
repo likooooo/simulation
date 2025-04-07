@@ -45,7 +45,7 @@ namespace near_filed
         return shapes;
     }
 }
-
+extern const uca::backend<double>& backend;
 template<class T, class Image = std::vector<T>> struct thin_mask
 {
     using cT = complex_t<T>;
@@ -147,5 +147,15 @@ template<class T, class Image = std::vector<T>> struct thin_mask
             // error_unclassified::out("    TODO shift ", dbu_to_um(double(cutline_center[0] - image_center[0]), 0.25), "(nm)", " image_center=", image_center, "(dbu) cutline_center=", cutline_center, "(dbu)");
         }
         return {line, cutline_meta};
+    }
+
+    static std::tuple<Image, grid_info_in_dbu> mask_image(const grid_info_in_dbu& info, const std::vector<poly_dbu>& polys, size_t USF, rT dissect_coef)
+    {
+        auto [x, y, mask_info] = edge_pixelization(info, polys, USF, dissect_coef);
+        print_grid_start_step<grid_info_in_dbu, debug_print<thin_mask>>(mask_info, "    intergral image");
+        backend.integral_y(mask_info.tilesize, x.data());
+        backend.integral_x(mask_info.tilesize, y.data());
+        backend.VtAdd(x.size(), x.data(), y.data());
+        return {y, mask_info};
     }
 };
