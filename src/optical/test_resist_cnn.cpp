@@ -92,7 +92,7 @@ struct resis_simulation : simulation_common{
         for(const auto& data : gg_table){
             errors.at(std::floor((data.post_calib_results.at(1) - start)/step)) += 1;
         }
-        plot_curves(std::vector<std::vector<double>>{errors}, {float(start)},{float(step)}, {"error distribution"}, { "r-x"});  
+        plot_curves(std::vector<std::vector<double>>{errors}, {float(start)},{float(step)}, {"error distribution"}, { "g-x"});  
     }
 };
 
