@@ -42,11 +42,27 @@ std::tuple<terms_cutline<double>, grid_info_in_dbu> get_resist_cutline(const std
         cutline_meta = cutline_meta_all_the_same;
         //== debug cutline
         check_cutline<double>(term, cutline_meta, oas_path, data, user_config, params_optional, 
-            [&](const cutline_data& data, const std::vector<double>& cutline_image,const point_dbu& start_dbu,  const point_dbu& step_dbu, float dbu){
+            [&](const cutline_data& data, const std::vector<double>& cutline_image, const point_dbu& start_dbu,  const point_dbu& step_dbu, float dbu){
                 display_cutline(data, cutline_image, start_dbu, step_dbu, dbu);
                 imshow(l, convert_to<std::vector<size_t>>(mask_info.tilesize));
             }
         );
+    }
+    auto resist_coefficients = convert_to<std::vector<double>>(params_optional["resist_coefficients"]);
+    if(resist_coefficients.size())
+    {
+        auto& resist = images.front();
+        VecScala<double>(resist.size(), resist_coefficients.front(), resist.data());
+
+        for(size_t i = 1; i < images.size(); i++)
+        {
+            VecScala<double>(images.at(i).size(), resist_coefficients.at(i), images.at(i).data());
+            backend.VtAdd(resist.size(), images.at(i).data(), resist.data());
+        }
+        py_plugin::ref()["extract_contours"]["find_and_plot_contours"](create_ndarray_from_vector(resist, convert_to<std::vector<int>>(mask_info.tilesize)),  convert_to<double>(params_optional["threshold_guess"]));
+        auto [optical_cutline, cutline_meta_all_the_same] = thin_mask_solver::get_edge_from_rasterization(mask_info, resist, cutline);
+        display_cutline_with_cd(data, optical_cutline,  cutline_meta_all_the_same.spatial.start, cutline_meta_all_the_same.spatial.step, user_config.dbu, convert_to<double>(params_optional["threshold_guess"]));
+        imshow(resist, convert_to<std::vector<size_t>>(mask_info.tilesize));
     }
     return {terms, cutline_meta};
 }
@@ -90,7 +106,7 @@ struct resis_simulation : simulation_common{
 
         std::vector<double> errors(N, 0);
         for(const auto& data : gg_table){
-            errors.at(std::floor((data.post_calib_results.at(1) - start)/step)) += 1;
+            errors.at(0 != step ? std::floor((data.post_calib_results.at(1) - start)/step) : 0) += 1;
         }
         plot_curves(std::vector<std::vector<double>>{errors}, {float(start)},{float(step)}, {"error distribution"}, { "g-x"});  
     }
