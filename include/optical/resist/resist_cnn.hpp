@@ -1,6 +1,9 @@
 #pragma once
+#include <kernels/gauss_laguerre.hpp>
+#include <fft/conv.hpp>
+#include <mekil/mkl_wrapper.hpp>
+#include <functional>
 #include "resist_common.hpp"
-#include <py_helper.hpp>
 
 template<class T>
 struct resist_cnn
@@ -10,59 +13,56 @@ struct resist_cnn
     using VectorQ = std::vector<T>;
 };
 
-template<class T>
-struct resist_least_squares
+template<class T>struct resist_blackbox
 {
-    using Y = std::vector<T>;
-    using A = std::vector<T>;
-    using X = std::vector<T>;
-    static X calib_selected_terms(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features, const std::vector<size_t>& term_enable)
+    template<class FuncConvWithKernel> static std::vector<std::vector<T>> gauss_laguerre_conv_linear(const vec2<size_t> shape, T sigma, size_t max_associated_order, size_t max_laguerre_order, FuncConvWithKernel&& conv_image_with)
     {
-        assert(gauges.size() == features.size());
-        assert(*std::max_element(term_enable.begin(), term_enable.end()) < features.front().size());
-        // [terms coef..., threshold]
-        X x(term_enable.size() + 1);
-        // [0,0,1,1, 0,0,1,1, 0,0,1,1]
-        Y y(features.size() * 4); 
-        // [terms intensity..., -1] x2 (on)
-        // [terms intensity..., 0] x2  (in - out)
-        A a(x.size() * y.size(), -1);
-        
-        for(size_t i = 0; i < features.size(); i++){
-            const terms_features_intensity<T>& feature = features.at(i);
-            T weight = T(gauges.at(i).weight);
-            weight = 1;
-            y.at(4 * i + 2) = gauges.at(i).polar * weight;
-            y.at(4 * i + 3) = gauges.at(i).polar * weight;
-
-            T* row = a.data() + i * 4 * x.size();
-            for(size_t ix : term_enable){
-                const auto [in, on_lhs, on_rhs, out_lhs, out_rhs] = feature.at(ix);
-                row[ix]                = weight * (on_lhs);
-                row[x.size() + ix]     = weight * (on_rhs);
-                //== 如果没有下面两个条件, 解出来的 X 全都是 0, 因为 A*0 = 0
-                row[2 * x.size() + ix] = weight * (in - out_lhs);
-                row[3 * x.size() + ix] = weight * (in - out_rhs);
-            }
+        std::vector<std::vector<T>> linears;
+        linears.reserve(max_laguerre_order * max_associated_order);
+        for(size_t laguerre_order = 0; laguerre_order < max_laguerre_order; laguerre_order++)
+        for(size_t associated_order = 0; associated_order < max_associated_order; associated_order++)
+        {
+            std::vector<T> kernel(shape[0] * shape[1]);
+            kernels::gauss_laguerre<T, 2, false>(kernel.data(), shape, sigma, laguerre_order, associated_order);
+            conv_image_with(kernel);
+            linears.push_back(std::move(kernel));
         }
-        auto py_a = create_ndarray_from_vector(a, {int(x.size()), int(y.size())});
-        auto py_y = create_ndarray_from_vector(y, {int(y.size())});
-        auto x_in_py = convert_to<std::vector<T>>(py_plugin::ref()["optimize"]["svd"](py_a, py_y));
-        assert(x_in_py.size() == x.size());
-        return x_in_py;
+        return linears;
     }
-    static X calib(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features)
+    static std::vector<std::vector<T>> gauss_laguerre_conv_quadratic(const std::vector<std::vector<T>>& linear_results)
     {
-        std::vector<size_t> term_enable(features.front().size());
-        std::iota(term_enable.begin(), term_enable.end(), 0);
-        return calib_selected_terms(gauges, features, term_enable);
+        std::vector<std::vector<T>> quadratic_result;
+        size_t N = linear_results.size();
+        quadratic_result.reserve(N * (N + 1) / 2);
+        // 对称正定矩阵，只用计算上三角部分
+        for(int r = 0; r < N; r++)
+        for(int c = r; c < N; c++){
+            std::vector<T> prod;
+            auto& a = linear_results.at(r);
+            auto& b = linear_results.at(c);
+            prod.reserve(a.size());
+            assert(a.size() == b.size());
+            std::transform(a.begin(), a.end(), b.begin(), std::back_insert_iterator(prod), [](T l, T r){return (l * std::conj<T>(r)).real();});
+            quadratic_result.push_back(std::move(prod));
+        }
+        return quadratic_result;
     }
-    static T calib_optical_threshold(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features)
+    static std::vector<T> quadratic_coefficients_diagonalize(const std::vector<T>& coef_of_quad, size_t eigen_value_count)
     {
-        constexpr size_t index_of_optical_term = 0;
-        std::vector<size_t> term_enable{index_of_optical_term};
-        X x = calib_selected_terms(gauges, features, term_enable);
-        assert(x.size() == 2);
-        return x.back() / x.front();
+        std::vector<T> eigenval(eigen_value_count);
+        LAPACKE_theev(LAPACK_COL_MAJOR, 'V', 'U', eigen_value_count, coef_of_quad.data(), eigen_value_count, eigenval.data());
+        return eigenval;
+    }
+    static std::tuple<std::vector<std::vector<T>>, std::vector<std::vector<T>>> gauss_laguerre(const std::vector<T>& input, vec2<size_t> shape, real_t<T> sigma, size_t max_associated_order, size_t max_laguerre_order)
+    {
+        auto linear = gauss_laguerre_conv_linear(shape, sigma, max_associated_order, max_laguerre_order, [&](std::vector<T>& kernel){
+            std::vector<T> k = input;
+            k.reserve(k.size() + 2 * shape[1]);
+            kernel.reserve(kernel.size() + 2 * shape[1]);
+            conv<T, complex_t<T>>(kernel.data(), k.data(), shape[1], shape[0]);
+            CenterCornerFlip(kernel.data(), shape[0], shape[1]);
+        });
+        auto quadratic = gauss_laguerre_conv_quadratic(linear);
+        return std::tuple<std::vector<std::vector<T>>, std::vector<std::vector<T>>>(std::move(linear), std::move(quadratic));
     }
 };

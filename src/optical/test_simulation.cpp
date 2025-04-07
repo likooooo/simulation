@@ -4,8 +4,7 @@
 #include <filesystem>
 #include <optical/clip.hpp>
 #include <optical/near_field/thin_mask.hpp>
-#include <optical/resist/resist_cnn.hpp>
-// #include <cpp_cuda/cuda_vector.hpp>
+#include <optical/resist/resist_least_squares.hpp>
 #include <type_traist_notebook/uca/backend.hpp>
 #ifdef CPU_BACKEND_ENABLE
 #   include <mekil/cpu_backend.hpp>
