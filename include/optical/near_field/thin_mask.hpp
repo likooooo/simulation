@@ -2,7 +2,7 @@
 #include <type_traist_notebook/type_traist.hpp>
 #include <optical/geometry.hpp>
 #include <optical/polynomials.hpp>
-// #include <spectrum_analysis.hpp>
+#include <fft/spectrum_analysis.hpp>
 template<class Image, class MetaData> 
 struct init_image
 {
@@ -141,9 +141,10 @@ template<class T, class Image = std::vector<T>> struct thin_mask
         rT offset =  rT(image_center[0] -  cutline_center[0]) / cutline_meta.spatial.step[0];
         if(0 != offset)
         {
+            //== shift 反而会导致点的偏移 
             // line.reserve(line.size() + 2);
             // shift<T, complex_t<T>, rT>(line.data(), line.size(), 1, offset, 0);
-            error_unclassified::out("    TODO shift ", dbu_to_um(double(image_center[0] -  cutline_center[0]), 0.25), "(nm)", " image_center=", image_center, "(dbu) cutline_center=", cutline_center, "(dbu)");
+            // error_unclassified::out("    TODO shift ", dbu_to_um(double(cutline_center[0] - image_center[0]), 0.25), "(nm)", " image_center=", image_center, "(dbu) cutline_center=", cutline_center, "(dbu)");
         }
         return {line, cutline_meta};
     }

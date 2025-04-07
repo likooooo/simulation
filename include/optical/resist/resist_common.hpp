@@ -144,12 +144,12 @@ inline void display_cutline(const cutline_data& data, const std::vector<double>&
     auto [cd, found] = get_on_measured_cd_positive_slice<double>(cutline_image, threshold, data, start[dir], step[dir]);
     assert(found);
     plot_curves(std::vector<std::vector<double>>{
-            cutline_image, std::vector<double>{1}, 
+            cutline_image, std::vector<double>{double(-1 == data.polar ? 0 : 1)}, 
             std::vector<double>{
                 //== TODO : 由于目前只有 mask, 变化太剧烈， 误差较大
-                // linear_interpolate<double>::eval(features_in_dbu[1]/ step_dbu[dir], cutline_image), 
-                // linear_interpolate<double>::eval(features_in_dbu[2]/ step_dbu[dir], cutline_image)
-                threshold, threshold
+                linear_interpolate<double>::eval(features_in_dbu[1]/ step_dbu[dir], cutline_image), 
+                linear_interpolate<double>::eval(features_in_dbu[2]/ step_dbu[dir], cutline_image)
+                // threshold, threshold
             }, 
             std::vector<double>{0.1, 0.1}, std::vector<double>{threshold, threshold}
         }, 

@@ -1,5 +1,6 @@
 #pragma once
 #include "geometry.hpp"
+#include "optical_numerics.hpp"
 
 struct cutline_data
 {
@@ -21,7 +22,8 @@ struct cutline_data
         std::vector<print_type> rows; rows.reserve(lines.size());
         std::transform(lines.begin(), lines.end(), std::back_insert_iterator(rows), [](const auto& l){return l.to_tuple();});
         debug_unclassified(rows, {"pattern-name", "cutline(dbu)", "polar", "measured-cd(dbu)", "weight", "post-calib-results"});
-        debug_unclassified::out("    post-calib-results are ", ref_names);
+        if(lines.front().post_calib_results.size())
+            debug_unclassified::out("    post-calib-results are ", ref_names);
     }
     static void regist_geometry_pyclass()
     {
@@ -89,7 +91,6 @@ struct user_config
         std::reverse(params.begin(), params.end());
         auto config_in_py = get_dict_values<user_config::print_type>(std::vector<std::string>(params.begin(), params.end()), workspace);
         user_config cfg = reinterpret_cast<user_config&>(config_in_py);
-        debug_unclassified::verbose() =  cfg.verbose(); 
         debug_unclassified(std::vector<user_config::print_type>{config_in_py}, params, 70);
         return {cfg, convert_to<py::dict>(workspace)};
     }
@@ -101,29 +102,39 @@ struct clip_data
     std::filesystem::path clip_path(size_t n) const{
         return std::filesystem::path(workdir) / (std::to_string(n) + ".oas");
     }
-    static clip_data cutline_clip_flow(const user_config& config, const std::vector<cutline_data>& table, vec2<double> shape_in_um)
-    {
-        std::vector<double> cutlines_in_um;
-        cutlines_in_um.reserve(4 * table.size());
-        for(const auto& t : table)
-        {
-            auto [from, to] = t. cutline;
-            cutlines_in_um.push_back(config.dbu * from[0]);
-            cutlines_in_um.push_back(config.dbu * from[1]);
-            cutlines_in_um.push_back(config.dbu * to[0]);
-            cutlines_in_um.push_back(config.dbu * to[1]);
-        }
-
-        py::object str = py_plugin::ref()["gauge_io"]["clip_flow"](
-            create_ndarray_from_vector(cutlines_in_um, {4, int(table.size())}), 
-            config.oas_file, config.cell_name, config.layer_id, shape_in_um, config.vb
-        );
-        return clip_data{py::extract<std::string>(str)};
-    }
+   
     std::filesystem::path clip_workdir(size_t n) const{
         std::filesystem::path dir(workdir);
         dir /= std::to_string(n);
         if (!std::filesystem::exists(dir)) assert(std::filesystem::create_directories(dir));
         return dir;
+    }
+
+    static clip_data cutline_clip_flow(const user_config& config, const std::vector<cutline_data>& table)
+    {
+        auto startstep_in_dbu = optical_numerics_in_dbu(cutline_dbu{0}, config);
+        auto shape_in_dbu     = (startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize);
+
+        std::vector<double> cutlines_in_um;
+        cutlines_in_um.reserve(4 * table.size());
+        for(const auto& t : table)
+        {
+            auto [from, to] = t. cutline;
+            if(!full_compare<point_dbu, point_dbu>::less((to - from) * 2, shape_in_dbu)){
+                error_unclassified::out("cutline clip failed(tile size is too small). cutline is ", t.cutline, " shape in dbu is ", shape_in_dbu);
+                continue;
+            }
+            cutlines_in_um.push_back(config.dbu * from[0]);
+            cutlines_in_um.push_back(config.dbu * from[1]);
+            cutlines_in_um.push_back(config.dbu * to[0]);
+            cutlines_in_um.push_back(config.dbu * to[1]);
+        }
+        
+        auto shape_in_um = convert_to<vec2<double>>(shape_in_dbu) * config.dbu;
+        py::object str = py_plugin::ref()["gauge_io"]["clip_flow"](
+            create_ndarray_from_vector(cutlines_in_um, {4, int(table.size())}), 
+            config.oas_file, config.cell_name, config.layer_id, shape_in_um, config.vb
+        );
+        return clip_data{py::extract<std::string>(str)};
     }
 };
