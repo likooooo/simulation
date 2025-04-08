@@ -18,9 +18,9 @@ gauss_laguerre_sigma_in_dbu = 30
 associate_order = 1
 laguerre_order = 2
 resist_coefficients, threshold_guess = [], 0.5
-resist_coefficients, threshold_guess = [-0.855563,0.921637,1.87816,-2.86478,2.24506], 0.0533628     
+# resist_coefficients, threshold_guess = [-0.855563,0.921637,1.87816,-2.86478,2.24506], 0.0533628     
 
-resist_coefficients, threshold_guess = [-1.33646,0.527619,2.21799,-3.57927,0.0658159], -0.12339 
+# resist_coefficients, threshold_guess = [-1.33646,0.527619,2.21799,-3.57927,0.0658159], -0.12339 
 
-resist_coefficients, threshold_guess = [-0.329115,-0.130417,1.56463,-1.20995,-0.362648], 0.231817  
-resist_coefficients, threshold_guess = [-1.33646,0.527619,2.21799,-3.57927,0.0658159]  ,  -0.12339 
+# resist_coefficients, threshold_guess = [-0.329115,-0.130417,1.56463,-1.20995,-0.362648], 0.231817  
+# resist_coefficients, threshold_guess = [-1.33646,0.527619,2.21799,-3.57927,0.0658159]  ,  -0.12339 

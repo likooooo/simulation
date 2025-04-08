@@ -5,14 +5,6 @@
 #include <functional>
 #include "resist_common.hpp"
 
-template<class T>
-struct resist_cnn
-{
-    using XN = std::vector<T>;
-    using MatrixP = std::vector<XN>;
-    using VectorQ = std::vector<T>;
-};
-
 template<class T>struct resist_blackbox
 {
     template<class FuncConvWithKernel> static std::vector<std::vector<T>> gauss_laguerre_conv_linear(const vec2<size_t> shape, T sigma, size_t max_associated_order, size_t max_laguerre_order, FuncConvWithKernel&& conv_image_with)
@@ -69,5 +61,51 @@ template<class T>struct resist_blackbox
             std::copy(quadratic.begin(), quadratic.end(), std::back_insert_iterator(linear));
         }
         return std::tuple<std::vector<std::vector<T>>, size_t>(std::move(linear), N);
+    }
+
+    using Y = std::vector<T>;
+    using A = std::vector<T>;
+    using X = std::vector<T>;
+    static X calib_selected_terms(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features, const std::vector<size_t>& term_enable, T threshold)
+    {
+        assert(gauges.size() == features.size());
+        assert(*std::max_element(term_enable.begin(), term_enable.end()) < features.front().size());
+        // [terms coef...]
+        X x(term_enable.size());
+        // [threshold, threshold, 1,1, threshold, threshold,1,1]
+        Y y(features.size() * 4); 
+        // [terms intensity..., -1] x2 (on)
+        // [terms intensity..., 0] x2  (in - out)
+        A a(x.size() * y.size(), -1);
+        
+        for(size_t i = 0; i < features.size(); i++){
+            const terms_features_intensity<T>& feature = features.at(i);
+            T weight = T(gauges.at(i).weight);
+            y.at(4 * i)     = weight * threshold;
+            y.at(4 * i + 1) = weight * threshold;
+            y.at(4 * i + 2) = gauges.at(i).polar * weight;
+            y.at(4 * i + 3) = gauges.at(i).polar * weight;
+
+            T* row = a.data() + i * 4 * x.size();
+            for(size_t ix : term_enable){
+                const auto [in, on_lhs, on_rhs, out_lhs, out_rhs] = feature.at(ix);
+                row[ix]                = weight * (on_lhs);
+                row[x.size() + ix]     = weight * (on_rhs);
+                //== 如果没有下面两个条件, 解出来的 X 全都是 0, 因为 A*0 = 0
+                row[2 * x.size() + ix] = weight * (in - out_lhs);
+                row[3 * x.size() + ix] = weight * (in - out_rhs);
+            }
+        }
+        auto py_a = create_ndarray_from_vector(a, {int(x.size()), int(y.size())});
+        auto py_y = create_ndarray_from_vector(y, {int(y.size())});
+        auto x_in_py = convert_to<std::vector<T>>(py_plugin::ref()["optimize"]["svd"](py_a, py_y));
+        assert(x_in_py.size() == x.size());
+        return x_in_py;
+    }
+    static X calib(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features, T threshold)
+    {
+        std::vector<size_t> term_enable(features.front().size());
+        std::iota(term_enable.begin(), term_enable.end(), 0);
+        return calib_selected_terms(gauges, features, term_enable, threshold);
     }
 };

@@ -5,7 +5,7 @@
 using resist = resist_blackbox<double>;
 void simulation_flow(const std::string& config_path);
 void regist_simulation_pyclass();
-bool regist_py = py_engine::regist_py_custom(regist_simulation_pyclass);
+bool regist_py = py_engine::regist_py_custom(cutline_data::regist_geometry_pyclass) && py_engine::regist_py_custom(regist_simulation_pyclass);
 int main()
 {
     py_engine::init();
@@ -34,7 +34,11 @@ std::tuple<terms_cutline<double>, grid_info_in_dbu> get_resist_cutline(const std
         convert_to<size_t>(params_optional["laguerre_order"])
     );
     terms_cutline<double> terms;
-    terms.reserve(images.size());
+    terms.reserve(images.size() + 1);
+    {
+        auto [term, cutline_meta_all_the_same] = thin_mask_solver::get_edge_from_rasterization(mask_info, mask, cutline);
+        terms.push_back(term);
+    }
     grid_info_in_dbu cutline_meta;
     for(const auto& l : images){
         auto [term, cutline_meta_all_the_same] = thin_mask_solver::get_edge_from_rasterization(mask_info, l, cutline);
@@ -51,15 +55,15 @@ std::tuple<terms_cutline<double>, grid_info_in_dbu> get_resist_cutline(const std
     auto resist_coefficients = convert_to<std::vector<double>>(params_optional["resist_coefficients"]);
     if(resist_coefficients.size())
     {
-        auto& resist = images.front();
+        auto resist = mask;
         VecScala<double>(resist.size(), resist_coefficients.front(), resist.data());
 
-        for(size_t i = 1; i < images.size(); i++)
+        for(size_t i = 0; i < images.size(); i++)
         {
-            VecScala<double>(images.at(i).size(), resist_coefficients.at(i), images.at(i).data());
+            VecScala<double>(images.at(i).size(), resist_coefficients.at(i + 1), images.at(i).data());
             backend.VtAdd(resist.size(), images.at(i).data(), resist.data());
         }
-        py_plugin::ref()["extract_contours"]["find_and_plot_contours"](create_ndarray_from_vector(resist, convert_to<std::vector<int>>(mask_info.tilesize)),  convert_to<double>(params_optional["threshold_guess"]));
+        // py_plugin::ref()["extract_contours"]["find_and_plot_contours"](create_ndarray_from_vector(resist, convert_to<std::vector<int>>(mask_info.tilesize)),  convert_to<double>(params_optional["threshold_guess"]));
         auto [optical_cutline, cutline_meta_all_the_same] = thin_mask_solver::get_edge_from_rasterization(mask_info, resist, cutline);
         display_cutline_with_cd(data, optical_cutline,  cutline_meta_all_the_same.spatial.start, cutline_meta_all_the_same.spatial.step, user_config.dbu, convert_to<double>(params_optional["threshold_guess"]));
         imshow(resist, convert_to<std::vector<size_t>>(mask_info.tilesize));
@@ -79,10 +83,9 @@ struct resis_simulation : simulation_common{
     }
     void calib_optical_threshold(bool verbose = false)
     {
+        threshold = convert_to<double>(user_config_table["threshold_guess"]);
         verbose_guard<debug_unclassified> vb(debug_unclassified::verbose() || verbose);
-        auto x = resist_least_squares<double>::calib(gg_table, cutline_features);
-        threshold = x.back();
-        x.pop_back();
+        auto x = resist::calib(gg_table, cutline_features, threshold);
         post_calib_analysis(gg_table, edges, x, threshold, edge_meta.spatial.step, config.dbu);
         cutline_data::print(gg_table);
         using print_type = std::tuple<std::string, std::string>;
@@ -95,7 +98,7 @@ struct resis_simulation : simulation_common{
                 convert_to<double>(user_config_table["laguerre_order"])
             })),
         };
-        print_table(rows, {"resist model", ""});
+        print_table(rows, {"resist model", ""}, -1);
         auto [it_min, it_max] = std::minmax_element(gg_table.begin(), gg_table.end(), [](const cutline_data& a, const cutline_data& b){
             return a.post_calib_results.at(1) < b.post_calib_results.at(1); 
         });
@@ -115,6 +118,7 @@ struct resis_simulation : simulation_common{
 void regist_simulation_pyclass()
 {
     py::class_<resis_simulation>("resis_simulation").def(py::init<>())       
+        .def_readwrite("gauge_table",& resis_simulation::gg_table)
         .def("load_user_config", &resis_simulation::load_user_config)
         .def("load_gauge_file", &resis_simulation::load_gauge_file)
         .def("clip_cutline", &resis_simulation::clip_cutline)

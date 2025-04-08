@@ -65,7 +65,8 @@ struct thin_mask_simulation : simulation_common{
 
 void regist_simulation_pyclass()
 {
-    py::class_<thin_mask_simulation>("thin_mask_simulation").def(py::init<>())       
+    py::class_<thin_mask_simulation>("thin_mask_simulation").def(py::init<>())      
+        .def_readwrite("gauge_table",& thin_mask_simulation::gg_table)
         .def("load_user_config", &thin_mask_simulation::load_user_config)
         .def("load_gauge_file", &thin_mask_simulation::load_gauge_file)
         .def("clip_cutline", &thin_mask_simulation::clip_cutline)

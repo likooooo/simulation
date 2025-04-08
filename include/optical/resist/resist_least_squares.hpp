@@ -23,7 +23,6 @@ struct resist_least_squares
         for(size_t i = 0; i < features.size(); i++){
             const terms_features_intensity<T>& feature = features.at(i);
             T weight = T(gauges.at(i).weight);
-            weight = 1;
             y.at(4 * i + 2) = gauges.at(i).polar * weight;
             y.at(4 * i + 3) = gauges.at(i).polar * weight;
 

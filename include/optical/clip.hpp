@@ -1,27 +1,34 @@
 #pragma once
 #include "geometry.hpp"
 #include "optical_numerics.hpp"
+#include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 
 struct cutline_data
 {
+    using print_type = std::tuple<std::string, cutline_dbu, int , double, double, double, std::vector<double>>;
     std::string pattern_name;
     cutline_dbu cutline;
     int polar;
+    double desigin_cd;
     double measured_cd;
     double weight;
     static inline std::vector<std::string> ref_names;
     std::vector<double> post_calib_results;
     cutline_data() = default;
-    using print_type = std::tuple<std::string, cutline_dbu, int , double, double, std::vector<double>>;
     print_type to_tuple() const
     {
-        return std::make_tuple(pattern_name, cutline, polar, measured_cd, weight, post_calib_results);
+        return std::make_tuple(pattern_name, cutline, polar, desigin_cd, measured_cd, weight, post_calib_results);
     }
+    bool operator==(const cutline_data& other) const
+    {
+        return  reinterpret_cast<const print_type&>(*this) == reinterpret_cast<const print_type&>(other);
+    }
+
     static void print(const std::vector<cutline_data>& lines)
     {
         std::vector<print_type> rows; rows.reserve(lines.size());
         std::transform(lines.begin(), lines.end(), std::back_insert_iterator(rows), [](const auto& l){return l.to_tuple();});
-        debug_unclassified(rows, {"pattern-name", "cutline(dbu)", "polar", "measured-cd(dbu)", "weight", "post-calib-results"});
+        debug_unclassified(rows, {"pattern-name", "cutline(dbu)", "polar", "design-cd(dbu)","measured-cd(dbu)", "weight", "post-calib-results"});
         if(lines.front().post_calib_results.size())
             debug_unclassified::out("    post-calib-results are ", ref_names);
     }
@@ -31,10 +38,12 @@ struct cutline_data
             .def_readwrite("pattern_name",& cutline_data::pattern_name)
             .def_readwrite("cutline",& cutline_data::cutline)
             .def_readwrite("polar",& cutline_data::polar)
+            .def_readwrite("desigin_cd",& cutline_data::desigin_cd)
             .def_readwrite("measured_cd",& cutline_data::measured_cd)
             .def_readwrite("weight",& cutline_data::weight)
             .def_readwrite("ref_names",& cutline_data::ref_names)
             .def_readwrite("post_calib_results",& cutline_data::post_calib_results);
+        py::class_<std::vector<cutline_data>>("CutlineDataVector").def(py::vector_indexing_suite<std::vector<cutline_data>>());
     }
     
     static std::vector<cutline_data> load_gauge_file(const std::string& path, double dbu)
@@ -52,6 +61,7 @@ struct cutline_data
             temp.cutline = convert_to<cutline_dbu>(line["cutline"]);
             temp.polar = convert_to<int>(line["polar"]);
             temp.measured_cd = convert_to<double>(line["measured_cd"]);
+            temp.desigin_cd = convert_to<double>(line["desigin_cd"]);
             temp.weight = convert_to<double>(line["weight"]);
             gg_basic_table.push_back(temp);
         }    
