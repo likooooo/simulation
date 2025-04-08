@@ -33,9 +33,34 @@ inline std::tuple<cutline_feature_pos_dbu, int> get_feature_pos_from_cutline(con
     };
     return {pos , axis};
 }
+template<class T> inline std::tuple<vec2<T>, int> get_feature_on_measured_from_cutline(const cutline_dbu& cutline, double target_cd_in_dbu, const point_dbu start, point_dbu step, double dbu)
+{
+    int axis = get_cutline_dir(cutline);
+    T center = T(cutline[1][axis] - cutline[0][axis]) / 2 -(dbu_to_um<T>((const T)step[axis], dbu) * 1e3); 
+    T lhs = T(center - target_cd_in_dbu/2 - start[axis]) / T(step[axis]);
+    T rhs = T(center + target_cd_in_dbu/2 - start[axis]) / T(step[axis]);
+    return {vec2<T>{lhs, rhs}, axis};
+}
 template<class T> inline terms_features_intensity<T> get_feature_intensity_from_cutline(const cutline_dbu& cutline, double measured_cd_in_dbu, const terms_cutline<T>& yArray, const point_dbu start, point_dbu step, double dbu)
 {
     auto [pos, axis] = get_feature_pos_from_cutline(cutline, measured_cd_in_dbu, start, step, dbu);
+    terms_features_intensity<T> features;
+    features.reserve(yArray.size());
+    for(const auto& y : yArray){
+        vec<T, 5> feature;
+        std::transform(pos.begin(), pos.end(), feature.begin(), [&](T n){
+            T current = T(n) / T(step[axis]);
+            return cubic_interpolate<T>::eval(current, y);
+        });
+        features.push_back(feature);
+    }
+    return features;
+}
+template<class T> inline vec3<std::vector<T>> get_dense_feature_intensity_from_cutline(const cutline_dbu& cutline, double measured_cd_in_dbu, const terms_cutline<T>& yArray, const point_dbu start, point_dbu step, double dbu)
+{
+    auto [pos, axis] = get_feature_on_measured_from_cutline(cutline, measured_cd_in_dbu, start, step, dbu);
+    std::vector<T> in, on, out;
+
     terms_features_intensity<T> features;
     features.reserve(yArray.size());
     for(const auto& y : yArray){

@@ -108,8 +108,34 @@ template<class T>struct resist_blackbox
         std::iota(term_enable.begin(), term_enable.end(), 0);
         return calib_svd_selected_terms(gauges, features, term_enable, threshold);
     }
-
+    using MatrixP = std::vector<T>;
+    static MatrixP vec_outer_product(const std::vector<T>& vec)
+    {
+        MatrixP p(vec.size() * vec.size());
+        size_t index_p = 0;
+        for(size_t y = 0; y < vec.size(); y++)
+        for(size_t x = 0; x < vec.size(); x++, index_p++)
+            p.at(index_p) = vec.at(x) * vec.at(y);
+        return p;
+    }
+    using VectorQ = std::vector<T>;
     static X calib_osqp_selected_terms(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features, const std::vector<size_t>& term_enable, T threshold)
     {
+        auto error_function = [](const terms_features_intensity<T>& f, size_t feature_index){
+            std::vector<T> v(f.size() + 1);
+            std::transform(f.begin(), f.end(), [](const auto& n){return n.at(feature_index);});
+            v.back() = -1;
+            return v;
+        };
+        MatrixP p = vec_outer_product(error_function(features.front(), 1)) * gauges.front().weight;
+        p += (vec_outer_product(error_function(features.front(), 2)) * gauges.front().weight);
+        for(size_t i = 1; i < features.size(); i++){
+            p += (vec_outer_product(error_function(features.at(i), 1)) * gauges.at(i).weight);
+            p += (vec_outer_product(error_function(features.at(i), 2)) * gauges.at(i).weight);
+        }
+        VectorQ q(size_t(std::sqrt(p.size())));
+        for(const auto& feature : features){
+            assert(feature.size() + 1 == q.size());
+        }        
     }
 };
