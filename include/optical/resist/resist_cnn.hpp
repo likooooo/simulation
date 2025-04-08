@@ -66,7 +66,7 @@ template<class T>struct resist_blackbox
     using Y = std::vector<T>;
     using A = std::vector<T>;
     using X = std::vector<T>;
-    static X calib_selected_terms(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features, const std::vector<size_t>& term_enable, T threshold)
+    static X calib_svd_selected_terms(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features, const std::vector<size_t>& term_enable, T threshold)
     {
         assert(gauges.size() == features.size());
         assert(*std::max_element(term_enable.begin(), term_enable.end()) < features.front().size());
@@ -102,10 +102,14 @@ template<class T>struct resist_blackbox
         assert(x_in_py.size() == x.size());
         return x_in_py;
     }
-    static X calib(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features, T threshold)
+    static X calib_svd(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features, T threshold)
     {
         std::vector<size_t> term_enable(features.front().size());
         std::iota(term_enable.begin(), term_enable.end(), 0);
-        return calib_selected_terms(gauges, features, term_enable, threshold);
+        return calib_svd_selected_terms(gauges, features, term_enable, threshold);
+    }
+
+    static X calib_osqp_selected_terms(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features, const std::vector<size_t>& term_enable, T threshold)
+    {
     }
 };

@@ -85,7 +85,7 @@ struct resis_simulation : simulation_common{
     {
         threshold = convert_to<double>(user_config_table["threshold_guess"]);
         verbose_guard<debug_unclassified> vb(debug_unclassified::verbose() || verbose);
-        auto x = resist::calib(gg_table, cutline_features, threshold);
+        auto x = resist::calib_svd(gg_table, cutline_features, threshold);
         post_calib_analysis(gg_table, edges, x, threshold, edge_meta.spatial.step, config.dbu);
         cutline_data::print(gg_table);
         using print_type = std::tuple<std::string, std::string>;
