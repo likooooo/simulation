@@ -109,33 +109,55 @@ template<class T>struct resist_blackbox
         return calib_svd_selected_terms(gauges, features, term_enable, threshold);
     }
     using MatrixP = std::vector<T>;
-    static MatrixP vec_outer_product(const std::vector<T>& vec)
+    static MatrixP cal_matrix_p(const std::vector<terms_features_intensity<T>>& features, const std::vector<T>& weights)
     {
-        MatrixP p(vec.size() * vec.size());
-        size_t index_p = 0;
-        for(size_t y = 0; y < vec.size(); y++)
-        for(size_t x = 0; x < vec.size(); x++, index_p++)
-            p.at(index_p) = vec.at(x) * vec.at(y);
+        auto on_point_intensity_should_be_equal_to_threshold = [&](const terms_features_intensity<T>& f, size_t feature_index){
+            std::vector<T> vec(f.size() + 1);
+            std::transform(f.begin(), f.end(), vec.begin(),[&](const auto& n){return n.at(feature_index);});
+            vec.back() = -1;
+            return vec;
+        };
+        auto apply_out_product_to_p = [&](MatrixP& p, const std::vector<T>& vec, T weight){
+            size_t index_p = 0;
+            for(size_t y = 0; y < vec.size(); y++)
+            for(size_t x = 0; x < vec.size(); x++, index_p++)
+                p.at(index_p) += (vec.at(x) * vec.at(y) * weight);
+        };
+        const size_t N = features.front().size() + 1;
+        MatrixP p(N * N, 0);
+        for(size_t i = 0; i < features.size(); i++){
+            apply_out_product_to_p(p, on_point_intensity_should_be_equal_to_threshold(features.at(i), 1), weights.at(i));
+            apply_out_product_to_p(p, on_point_intensity_should_be_equal_to_threshold(features.at(i), 2), weights.at(i));
+        }
         return p;
     }
     using VectorQ = std::vector<T>;
-    static X calib_osqp_selected_terms(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features, const std::vector<size_t>& term_enable, T threshold)
+    static VectorQ cal_vector_q(const std::vector<terms_features_intensity<T>>& features, const std::vector<T>& weights)
     {
-        auto error_function = [](const terms_features_intensity<T>& f, size_t feature_index){
-            std::vector<T> v(f.size() + 1);
-            std::transform(f.begin(), f.end(), [](const auto& n){return n.at(feature_index);});
-            v.back() = -1;
-            return v;
+        auto in_out_point_intensity_should_be_high_contrast = [&](VectorQ& q, const terms_features_intensity<T>& f, T weight){
+            std::vector<T> vec(f.size() + 1);
+            for(size_t i = 0; i < f.size(); i++){
+                const auto& n = f.at(i);
+                q.at(i) += (T(-1) * (n.at(0) - n.at(3) - n.at(4)) * weight);
+            }
         };
-        MatrixP p = vec_outer_product(error_function(features.front(), 1)) * gauges.front().weight;
-        p += (vec_outer_product(error_function(features.front(), 2)) * gauges.front().weight);
-        for(size_t i = 1; i < features.size(); i++){
-            p += (vec_outer_product(error_function(features.at(i), 1)) * gauges.at(i).weight);
-            p += (vec_outer_product(error_function(features.at(i), 2)) * gauges.at(i).weight);
-        }
-        VectorQ q(size_t(std::sqrt(p.size())));
-        for(const auto& feature : features){
-            assert(feature.size() + 1 == q.size());
-        }        
+        const size_t N = features.front().size() + 1;
+        VectorQ q(N, 0);
+        for(size_t i = 0; i < features.size(); i++)
+            in_out_point_intensity_should_be_high_contrast(q, features.at(i), weights.at(i));
+        return q;
+    }
+    static X calib_osqp(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features, T threshold)
+    {
+        assert(features.size() == gauges.size());
+        std::vector<T> weights(gauges.size());
+        std::transform(gauges.begin(), gauges.end(), weights.begin(), [](const cutline_data& data){return T(data.weight);});
+        MatrixP p = cal_matrix_p(features, weights);
+        VectorQ q = cal_vector_q(features, weights);
+
+        auto py_p = create_ndarray_from_vector(p, {int(q.size()), int(q.size())});
+        auto py_q = create_ndarray_from_vector(q, {int(q.size())});
+        auto x_in_py = convert_to<std::vector<T>>(py_plugin::ref()["optimize"]["unconstrained_optimization"](py_p, py_q));
+        return X();
     }
 };
