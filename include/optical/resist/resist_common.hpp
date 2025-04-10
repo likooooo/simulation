@@ -5,8 +5,13 @@
 #include <optical/clip.hpp>
 
 using cutline_feature_pos_dbu = vec<double, 5>;
+template<class T> using intensity_feature = vec<T, 5>;
+template<class T> using terms_features_intensity = std::vector<intensity_feature<T>>;
+using cutline_dense_feature_pos_dbu = vec3<std::vector<double>>;
+template<class T> using dense_intensity_feature = vec3<std::vector<T>>;
+template<class T> using terms_dense_features_intensity = std::vector<dense_intensity_feature<T>>;
+
 template<class T> using terms_cutline = std::vector<std::vector<T>>;
-template<class T> using terms_features_intensity = std::vector<vec<T, 5>>;
 template<class T> using aerial_slice = std::vector<T>;
 
 inline int get_cutline_dir(const cutline_dbu& cutline)
@@ -33,14 +38,6 @@ inline std::tuple<cutline_feature_pos_dbu, int> get_feature_pos_from_cutline(con
     };
     return {pos , axis};
 }
-template<class T> inline std::tuple<vec2<T>, int> get_feature_on_measured_from_cutline(const cutline_dbu& cutline, double target_cd_in_dbu, const point_dbu start, point_dbu step, double dbu)
-{
-    int axis = get_cutline_dir(cutline);
-    T center = T(cutline[1][axis] - cutline[0][axis]) / 2 -(dbu_to_um<T>((const T)step[axis], dbu) * 1e3); 
-    T lhs = T(center - target_cd_in_dbu/2 - start[axis]) / T(step[axis]);
-    T rhs = T(center + target_cd_in_dbu/2 - start[axis]) / T(step[axis]);
-    return {vec2<T>{lhs, rhs}, axis};
-}
 template<class T> inline terms_features_intensity<T> get_feature_intensity_from_cutline(const cutline_dbu& cutline, double measured_cd_in_dbu, const terms_cutline<T>& yArray, const point_dbu start, point_dbu step, double dbu)
 {
     auto [pos, axis] = get_feature_pos_from_cutline(cutline, measured_cd_in_dbu, start, step, dbu);
@@ -56,23 +53,53 @@ template<class T> inline terms_features_intensity<T> get_feature_intensity_from_
     }
     return features;
 }
-// template<class T> inline vec3<std::vector<T>> get_dense_feature_intensity_from_cutline(const cutline_dbu& cutline, double measured_cd_in_dbu, const terms_cutline<T>& yArray, const point_dbu start, point_dbu step, double dbu)
-// {
-//     auto [pos, axis] = get_feature_on_measured_from_cutline(cutline, measured_cd_in_dbu, start, step, dbu);
-//     std::vector<T> in, on, out;
 
-//     terms_features_intensity<T> features;
-//     features.reserve(yArray.size());
-//     for(const auto& y : yArray){
-//         vec<T, 5> feature;
-//         std::transform(pos.begin(), pos.end(), feature.begin(), [&](T n){
-//             T current = T(n) / T(step[axis]);
-//             return cubic_interpolate<T>::eval(current, y);
-//         });
-//         features.push_back(feature);
-//     }
-//     return features;
-// }
+inline std::tuple<cutline_dense_feature_pos_dbu, int> to_dense_feature(const std::tuple<cutline_feature_pos_dbu, int>& feature_pos, const point_dbu& step)
+{
+    const auto [pos, axis] = feature_pos;
+    const auto [in, on_lhs, on_rhs, out_lhs, out_rhs] = pos;
+    std::vector<double> vec_in, vec_on, vec_out;
+    vec_in.reserve(size_t((on_lhs - out_lhs)/step[axis] + 1) + size_t((out_rhs - on_rhs)/step[axis] + 1));
+    vec_on.reserve(2);
+    vec_out.reserve(size_t((on_rhs - on_lhs)/step[axis] + 1));
+    // for(double from = out_lhs; from < (on_lhs - step[axis]) ; from += step[axis]){
+    //     vec_out.push_back(from);
+    // }
+    // for(double from = on_lhs + step[axis]; from < (on_rhs - step[axis]) ; from += step[axis]){
+    //     vec_in.push_back(from);
+    // }
+    // for(double from = on_rhs + step[axis]; from < (out_rhs - step[axis]); from += step[axis]){
+    //     vec_out.push_back(from);
+    // }
+    vec_out = {out_lhs, out_lhs + step[axis], out_rhs - step[axis], out_rhs};
+    vec_in = {in - step[axis], in, in + step[axis]};
+    
+    // vec_out = {out_lhs, out_rhs};
+    // vec_in = {in};
+    
+    vec_on = {on_lhs, on_rhs};
+    return {cutline_dense_feature_pos_dbu{vec_in, vec_on, vec_out}, axis};
+}
+template<class T> inline terms_dense_features_intensity<T> get_dense_feature_intensity_from_cutline(const cutline_dbu& cutline, double measured_cd_in_dbu, const terms_cutline<T>& yArray, const point_dbu start, const point_dbu step, double dbu)
+{
+    auto [dense_points, axis] = to_dense_feature(get_feature_pos_from_cutline(cutline, measured_cd_in_dbu, start, step, dbu), step);
+    const auto& [vec_in, vec_on, vec_out] = dense_points;
+
+    terms_dense_features_intensity<T> features; features.reserve(yArray.size());
+    std::vector<T> intensity_in, intensity_on, intensity_out;
+    intensity_in.reserve(vec_in.size());
+    intensity_on.reserve(vec_on.size());
+    intensity_out.reserve(vec_out.size());
+
+    for(const auto& y : yArray){
+        intensity_in.clear(); intensity_on.clear(); intensity_out.clear();
+        std::transform(vec_in.begin(),  vec_in.end(),  std::back_inserter(intensity_in),  [&](double x){return cubic_interpolate<T>::eval(x / step[axis], y);});
+        std::transform(vec_on.begin(),  vec_on.end(),  std::back_inserter(intensity_on),  [&](double x){return cubic_interpolate<T>::eval(x / step[axis], y);});
+        std::transform(vec_out.begin(), vec_out.end(), std::back_inserter(intensity_out), [&](double x){return cubic_interpolate<T>::eval(x / step[axis], y);});
+        features.push_back({intensity_in, intensity_on, intensity_out});
+    }
+    return features;
+}
 
 template<class T> inline aerial_slice<T> get_resist_slice_image(const terms_cutline<T>& terms, const std::vector<T>& coefs)
 {

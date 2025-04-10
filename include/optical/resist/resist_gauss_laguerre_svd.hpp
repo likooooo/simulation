@@ -5,7 +5,7 @@
 #include <functional>
 #include "resist_common.hpp"
 
-template<class T>struct resist_blackbox
+template<class T>struct resist_gauss_laguerre_svd
 {
     template<class FuncConvWithKernel> static std::vector<std::vector<T>> gauss_laguerre_conv_linear(const vec2<size_t> shape, T sigma, size_t max_associated_order, size_t max_laguerre_order, FuncConvWithKernel&& conv_image_with)
     {
@@ -147,17 +147,136 @@ template<class T>struct resist_blackbox
             in_out_point_intensity_should_be_high_contrast(q, features.at(i), weights.at(i));
         return q;
     }
-    static X calib_osqp(const std::vector<cutline_data>& gauges, const std::vector<terms_features_intensity<T>>& features, T threshold)
+    static std::tuple<std::vector<T>, std::vector<T>> equality_constraint(const std::vector<terms_features_intensity<T>>& features, T threshold)
+    {
+        size_t N = features.front().size() + 1;
+
+        std::vector<T> b(3 + 1);
+        std::vector<T> A(N * b.size());
+        size_t r = 0;
+        std::fill(A.begin(), A.begin() + features.front().size(), 0);
+        A.at(N - 1) =  1;
+        b.at(0) = threshold;
+        for(const auto& f : features){
+            auto it = A.begin() + N;
+            std::transform(f.begin(), f.end(), it, it,[](const vec<T, 5>& v, T n){return n + v.at(0);});
+            b.at(1) += 1;
+            it = A.begin() + 2 * N;
+            std::transform(f.begin(), f.end(), it, it,[](const vec<T, 5>& v, T n){return n + v.at(1) + v.at(2);});
+            b.at(2) += (threshold + threshold);
+            it = A.begin() + 3 * N;
+            std::transform(f.begin(), f.end(), it, it,[](const vec<T, 5>& v, T n){return n + v.at(3) + v.at(4);});
+            b.at(3) += 0;
+        }
+
+        return {A, b};
+    }
+    
+    static MatrixP cal_matrix_p(const std::vector<terms_dense_features_intensity<T>>& features, const std::vector<T>& weights)
+    {
+        auto on_point_intensity_should_be_equal_to_threshold = [&](const terms_dense_features_intensity<T>& f, size_t feature_index){
+            std::vector<T> vec(f.size() + 1);
+            std::transform(f.begin(), f.end(), vec.begin(),[&](const auto& n){return n.at(1).at(feature_index);});
+            vec.back() = -1;
+            return vec;
+        };
+        auto apply_out_product_to_p = [&](MatrixP& p, const std::vector<T>& vec, T weight){
+            size_t index_p = 0;
+            for(size_t y = 0; y < vec.size(); y++)
+            for(size_t x = 0; x < vec.size(); x++, index_p++)
+                p.at(index_p) += (vec.at(x) * vec.at(y) * weight);
+        };
+        const size_t N = features.front().size() + 1;
+        MatrixP p(N * N, 0);
+        for(size_t i = 0; i < features.size(); i++){
+            apply_out_product_to_p(p, on_point_intensity_should_be_equal_to_threshold(features.at(i), 0), weights.at(i));
+            apply_out_product_to_p(p, on_point_intensity_should_be_equal_to_threshold(features.at(i), 1), weights.at(i));
+        }
+        return p;
+    }
+    static VectorQ cal_vector_q(const std::vector<terms_dense_features_intensity<T>>& features, const std::vector<T>& weights)
+    {
+        //== linear miniminze
+        auto in_out_point_intensity_should_be_high_contrast = [&](VectorQ& q, const terms_dense_features_intensity<T>& f, T weight){
+            std::vector<T> vec(f.size() + 1);
+            for(size_t i = 0; i < f.size(); i++){
+                const auto& n = f.at(i);
+                T in_data_sum = std::accumulate(n.at(0).begin(), n.at(0).end(), T(0), [](T sum, T a){return sum + a;}) / n.at(0).size();
+                T out_data_sum = std::accumulate(n.at(2).begin(), n.at(2).end(), T(0), [](T sum, T a){return sum + a;}) / n.at(2).size();
+                q.at(i) += ((out_data_sum - in_data_sum) * weight);
+            }
+        };
+        const size_t N = features.front().size() + 1;
+        VectorQ q(N, 0);
+        for(size_t i = 0; i < features.size(); i++)
+            in_out_point_intensity_should_be_high_contrast(q, features.at(i), weights.at(i));
+        return q;
+    }
+    static std::tuple<std::vector<T>, std::vector<T>> equality_constraint(const std::vector<terms_dense_features_intensity<T>>& features, T threshold)
+    {
+        size_t N = features.front().size() + 1;
+
+        std::vector<T> b(3 + 1);
+        std::vector<T> A(N * b.size());
+        size_t r = 0;
+        std::fill(A.begin(), A.begin() + features.front().size(), 0);
+        A.at(N - 1) =  1;
+        b.at(0) = threshold;
+        for(const auto& f : features){
+            auto it = A.begin() + N;
+            std::transform(f.begin(), f.end(), it, it,[](const dense_intensity_feature<T>& v, T n){return n + v.at(0).at(v.at(0).size() / 2);});
+            b.at(1) += 1;
+            it = A.begin() + 2 * N;
+            std::transform(f.begin(), f.end(), it, it,[](const dense_intensity_feature<T>& v, T n){
+                    assert(v.at(1).size() == 2);
+                    return n + v.at(1).front() + v.at(1).back();
+                }
+            );
+            b.at(2) += (threshold + threshold);
+            it = A.begin() + 3 * N;
+            std::transform(f.begin(), f.end(), it, it,[](const dense_intensity_feature<T>& v, T n){return n + v.at(2).front() + v.at(2).back();});
+            b.at(3) += 0;
+        }
+
+        return {A, b};
+    }
+    static X calib_svd_kkt(const MatrixP& p, const VectorQ& q, const std::vector<T>& A, const std::vector<T>& b)
+    {
+        auto py_p = create_ndarray_from_vector(p, {int(q.size()), int(q.size())});
+        auto py_q = create_ndarray_from_vector(q, {int(q.size())});
+        auto py_A = create_ndarray_from_vector(A, {int(A.size()/b.size()), int(b.size())});
+        auto py_b = create_ndarray_from_vector(b, {int(b.size())});
+
+        auto x_in_py = convert_to<std::vector<T>>(py_plugin::ref()["optimize"]["optimization_with_kkt"](py_p, py_q, py_A, py_b));
+        assert(x_in_py.size() == q.size());
+        return x_in_py;
+    }
+    template<class TFeature>
+    static X calib_svd_kkt(const std::vector<cutline_data>& gauges, const TFeature& features, T threshold)
     {
         assert(features.size() == gauges.size());
         std::vector<T> weights(gauges.size());
         std::transform(gauges.begin(), gauges.end(), weights.begin(), [](const cutline_data& data){return T(data.weight);});
         MatrixP p = cal_matrix_p(features, weights);
         VectorQ q = cal_vector_q(features, weights);
-
-        auto py_p = create_ndarray_from_vector(p, {int(q.size()), int(q.size())});
-        auto py_q = create_ndarray_from_vector(q, {int(q.size())});
-        auto x_in_py = convert_to<std::vector<T>>(py_plugin::ref()["optimize"]["unconstrained_optimization"](py_p, py_q));
-        return X();
+        auto [A, b] = equality_constraint(features, threshold);
+        return calib_svd_kkt(p, q, A, b);
     }
+    
+    using VectorL = std::vector<T>;
+    using VectorU = VectorL;
+    using MatrixA = std::vector<std::vector<T>>;
+
+    // static std::tuple<MatrixA, VectorL, VectorU> cal_constrains(size_t N, vec2<T> threshold_boundary)
+    // {
+    //     MatrixA ac;
+    //     VectorL lb;
+    //     VectorU ub;
+    //     std::vector<T> constrain(N);
+    //     N.back() = 1;
+
+    //     ac.push_back(constrain);
+    //     lb.push_back(threshold_boundary[0]);
+    //     ub.push_back(threshold_boundary[1]);
+    // }
 };

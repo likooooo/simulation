@@ -9,7 +9,7 @@
 #   include <cpp_cuda/gpu_backend.hpp>
 #endif
 
-template<class TGetherCutline> inline std::tuple<std::vector<terms_cutline<double>>, std::vector<terms_features_intensity<double>>, grid_info_in_dbu> gather_cutline_and_features(
+template<class TGetherCutline> inline std::tuple<std::vector<terms_cutline<double>>, std::vector<terms_features_intensity<double>>, grid_info_in_dbu> gather_feature_from_cutline(
     const user_config& config, py::dict user_config_table, const std::vector<cutline_data>& gg_table, const clip_data& clip, TGetherCutline&& callback)
 {
     std::vector<terms_cutline<double>> edges;
@@ -36,7 +36,33 @@ template<class TGetherCutline> inline std::tuple<std::vector<terms_cutline<doubl
     }
     return {edges, cutline_features, edge_meta};
 }
+template<class TGetherCutline> inline std::tuple<std::vector<terms_cutline<double>>, std::vector<terms_dense_features_intensity<double>>, grid_info_in_dbu> gather_dense_feature_from_cutline(
+    const user_config& config, py::dict user_config_table, const std::vector<cutline_data>& gg_table, const clip_data& clip, TGetherCutline&& callback)
+{
+    std::vector<terms_cutline<double>> edges;
+    std::vector<terms_dense_features_intensity<double>> cutline_features;
+    edges.reserve(gg_table.size());
+    cutline_features.reserve(gg_table.size());
+    grid_info_in_dbu edge_meta;
+    for(size_t i = 0; i < gg_table.size(); i++)
+    {
+        if(gg_table.at(i).weight == 0) continue;
+        const auto& [terms, meta] = callback(clip.clip_path(i), gg_table.at(i), config, user_config_table);
+        edge_meta = meta;
+        edges.push_back(terms);
+        auto [start, step] = meta.spatial;
+        assert(gg_table.at(i).cutline[0] == start);
 
+        auto features = get_dense_feature_intensity_from_cutline<double>(
+            gg_table.at(i).cutline, 
+            gg_table.at(i).measured_cd,
+            edges.back(), start, step, config.dbu
+        );
+        cutline_features.push_back(features);
+        debug_unclassified::out("    cutline dense-features is ", features);
+    }
+    return {edges, cutline_features, edge_meta};
+}
 template<class T, class TDisplay> void check_cutline(const std::vector<T>& edge_image, const grid_info_in_dbu& cutline_meta, 
     const std::string& oas_path, const cutline_data& data, const user_config& user_config, const py::object params_optional,
     TDisplay&& display)

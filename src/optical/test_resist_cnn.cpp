@@ -1,8 +1,8 @@
-#include <optical/resist/resist_cnn.hpp>
+#include <optical/resist/resist_gauss_laguerre_svd.hpp>
 #include <optical/gather_cutline.hpp>
 #include <optical/resist/resist_least_squares.hpp>
 
-using resist = resist_blackbox<double>;
+using resist = resist_gauss_laguerre_svd<double>;
 void simulation_flow(const std::string& config_path);
 void regist_simulation_pyclass();
 bool regist_py = py_engine::regist_py_custom(cutline_data::regist_geometry_pyclass) && py_engine::regist_py_custom(regist_simulation_pyclass);
@@ -73,10 +73,11 @@ std::tuple<terms_cutline<double>, grid_info_in_dbu> get_resist_cutline(const std
 
 struct resis_simulation : simulation_common{
     double threshold;
+    std::vector<terms_dense_features_intensity<double>> cutline_features;
     void gather_cutline_and_features(bool verbose = false)
     {
         verbose_guard<debug_unclassified> vb(debug_unclassified::verbose() || verbose);
-        auto result = ::gather_cutline_and_features(config, user_config_table, gg_table, clip, get_resist_cutline);
+        auto result = gather_dense_feature_from_cutline(config, user_config_table, gg_table, clip, get_resist_cutline);
         edges = std::get<0>(result);
         cutline_features = std::get<1>(result);
         edge_meta = std::get<2>(result);
@@ -85,7 +86,9 @@ struct resis_simulation : simulation_common{
     {
         threshold = convert_to<double>(user_config_table["threshold_guess"]);
         verbose_guard<debug_unclassified> vb(debug_unclassified::verbose() || verbose);
-        auto x = resist::calib_osqp(gg_table, cutline_features, threshold);
+        auto x = resist::calib_svd_kkt(gg_table, cutline_features, threshold);
+        threshold = x.back();
+        x.pop_back();
         post_calib_analysis(gg_table, edges, x, threshold, edge_meta.spatial.step, config.dbu);
         cutline_data::print(gg_table);
         using print_type = std::tuple<std::string, std::string>;

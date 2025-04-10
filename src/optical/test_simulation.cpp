@@ -48,7 +48,7 @@ struct thin_mask_simulation : simulation_common{
     void gather_cutline_and_features(bool verbose = false)
     {
         verbose_guard<debug_unclassified> vb(debug_unclassified::verbose() || verbose);
-        auto result = ::gather_cutline_and_features(config, user_config_table, gg_table, clip, get_thin_mask_cutline);
+        auto result = gather_feature_from_cutline(config, user_config_table, gg_table, clip, get_thin_mask_cutline);
         edges = std::get<0>(result);
         cutline_features = std::get<1>(result);
         edge_meta = std::get<2>(result);
