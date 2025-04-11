@@ -63,13 +63,13 @@ inline std::tuple<cutline_dense_feature_pos_dbu, int> to_dense_feature(const std
     vec_on.reserve(2);
     vec_out.reserve(size_t((on_rhs - on_lhs)/step[axis] + 1));
     // for(double from = out_lhs; from < (on_lhs - step[axis]) ; from += step[axis]){
-    //     vec_out.push_back(from);
+        // vec_out.push_back(from);
     // }
     // for(double from = on_lhs + step[axis]; from < (on_rhs - step[axis]) ; from += step[axis]){
-    //     vec_in.push_back(from);
+        // vec_in.push_back(from);
     // }
     // for(double from = on_rhs + step[axis]; from < (out_rhs - step[axis]); from += step[axis]){
-    //     vec_out.push_back(from);
+        // vec_out.push_back(from);
     // }
     vec_out = {out_lhs, out_lhs + step[axis], out_rhs - step[axis], out_rhs};
     vec_in = {in - step[axis], in, in + step[axis]};

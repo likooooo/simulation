@@ -86,7 +86,7 @@ struct resis_simulation : simulation_common{
     {
         threshold = convert_to<double>(user_config_table["threshold_guess"]);
         verbose_guard<debug_unclassified> vb(debug_unclassified::verbose() || verbose);
-        auto x = resist::calib_svd_kkt(gg_table, cutline_features, threshold);
+        auto x = resist::calib_osqp_with_equality_constraints(gg_table, cutline_features, threshold);
         threshold = x.back();
         x.pop_back();
         post_calib_analysis(gg_table, edges, x, threshold, edge_meta.spatial.step, config.dbu);

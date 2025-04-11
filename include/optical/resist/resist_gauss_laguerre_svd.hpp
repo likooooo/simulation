@@ -240,6 +240,7 @@ template<class T>struct resist_gauss_laguerre_svd
 
         return {A, b};
     }
+    
     static X calib_svd_kkt(const MatrixP& p, const VectorQ& q, const std::vector<T>& A, const std::vector<T>& b)
     {
         auto py_p = create_ndarray_from_vector(p, {int(q.size()), int(q.size())});
@@ -263,20 +264,22 @@ template<class T>struct resist_gauss_laguerre_svd
         return calib_svd_kkt(p, q, A, b);
     }
     
-    using VectorL = std::vector<T>;
-    using VectorU = VectorL;
-    using MatrixA = std::vector<std::vector<T>>;
+    template<class TFeature>static X calib_osqp_with_equality_constraints(const std::vector<cutline_data>& gauges, const TFeature& features, T threshold)
+    {
+        assert(features.size() == gauges.size());
+        std::vector<T> weights(gauges.size());
+        std::transform(gauges.begin(), gauges.end(), weights.begin(), [](const cutline_data& data){return T(data.weight);});
+        MatrixP p = cal_matrix_p(features, weights);
+        VectorQ q = cal_vector_q(features, weights);
+        auto [A, b] = equality_constraint(features, threshold);
 
-    // static std::tuple<MatrixA, VectorL, VectorU> cal_constrains(size_t N, vec2<T> threshold_boundary)
-    // {
-    //     MatrixA ac;
-    //     VectorL lb;
-    //     VectorU ub;
-    //     std::vector<T> constrain(N);
-    //     N.back() = 1;
+        auto py_p = create_ndarray_from_vector(p, {int(q.size()), int(q.size())});
+        auto py_q = create_ndarray_from_vector(q, {int(q.size())});
+        auto py_A = create_ndarray_from_vector(A, {int(A.size()/b.size()), int(b.size())});
+        auto py_b = create_ndarray_from_vector(b, {int(b.size())});
 
-    //     ac.push_back(constrain);
-    //     lb.push_back(threshold_boundary[0]);
-    //     ub.push_back(threshold_boundary[1]);
-    // }
+        auto x_in_py = convert_to<std::vector<T>>(py_plugin::ref()["optimize"]["optimizeation_osqp"](py_p, py_q, py_A, py_b, py_b));
+        assert(x_in_py.size() == q.size());
+        return x_in_py;
+    }
 };
