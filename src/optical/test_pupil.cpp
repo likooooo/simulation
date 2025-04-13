@@ -1,4 +1,5 @@
 #include <optical/pupil/pupil.hpp>
+#include <optical/pupil/zernike.hpp>
 #include <assert.h>
 #include <random>
 #include <py_helper.hpp>
@@ -11,7 +12,7 @@ template<class T> struct test
     using meterial = typename film_stack_solver<T>::meterial;
 
     constexpr static auto vacuum_nk = pupil_radial<T>::vacuum_nk;
-    T NA = 0.5, lambda = 13.5;
+    T NA = 0.8, lambda = 13.5;
     pycallback_update_frame display = py_plot::create_callback_simulation_fram_done();
     test()
     {
@@ -137,8 +138,19 @@ int main()
     py_engine::init();
     test<float> t;
     t.get_anamorphic_pupil();
-    for(size_t i = 0; i < 100; i++){
-        t.test_single_layer();
-        printf("test-%zu end\n\n", i);
-    }
+    // for(size_t i = 0; i < 100; i++){
+    //     t.test_single_layer();
+    //     printf("test-%zu end\n\n", i);
+    // }
+}
+
+template<class T> void gen_pupil_array(size_t N, T lambda, T defocus, T NA, complex_t<T> nk = complex_t<T>(1))
+{
+    std::vector<matrix2x3<complex_t<T>>> pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(5, NA, nk);
+    pupil_radial<T>::apply_defocus_to_pupil_radial(pupil_radials, nk, defocus, NA, lambda);
+    using zk_table = zernike_radial_table<T, 10>;
+    zk_table zernike(pupil_radials.size());
+    zernike.apply_aberration_m0_to_pupil(pupil_radials, {std::tuple<size_t, size_t, T>(0, 0, 1), std::tuple<size_t, size_t, T>(2, 0, 1)});
+    // apply M0 aberrations
+    // TO aRRAY
 }

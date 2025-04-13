@@ -32,31 +32,34 @@ public:
         });
         return pupil;
     }
-    static void apply_defocus_to_pupil_radial(std::vector<matrix2x3<cT>>& pupil, cT nI, T deltaZ, T NA, T wavelength){
-        cT cPhase(0, deltaZ / wavelength);
+    static void apply_defocus_to_pupil_radial(std::vector<matrix2x3<cT>>& pupil, cT nI, T deltaZ, T NA, T wavelength, T reduction_ratio = T(1)){
+       
         std::vector<T> kr = make_kr(NA, pupil.size());
         for(size_t i = 0; i < kr.size(); i++){
-            pupil.at(i) *= std::exp(cPhase * kz<cT>(nI, kr.at(i)) / nI); 
+            cT cPhase(0, deltaZ / wavelength);
+            T k = kr.at(i) * reduction_ratio;
+            cPhase = cPhase * kz<cT>(nI, k) / nI;
+            pupil.at(i) *= std::exp(cPhase); 
         }
     }
-    static void apply_obliquity_factor_to_pupil_radial(std::vector<matrix2x3<cT>>& pupil, T NA, T reduction_ratio, T immersion_index){
+    static void apply_obliquity_factor_to_pupil_radial(std::vector<matrix2x3<cT>>& pupil, T NA, T reduction_ratio, cT index){
         std::vector<T> kr = make_kr(NA, pupil.size());
         for(size_t i = 0; i < kr.size(); i++)
         {
-            if(kr.at(i) * reduction_ratio > vacuum_nk.real() || kr.at(i) > immersion_index)
+            if(kr.at(i)  > vacuum_nk.real() || kr.at(i) > index.real())
             {
                 pupil.at(i) = {0};
             }
             else
             {
                 auto cosO = kz(vacuum_nk.real(), kr.at(i)) / vacuum_nk.real();
-                auto cosI = kz(immersion_index, kr.at(i)) / immersion_index;
+                auto cosI = kz(index.real(), kr.at(i)) / index.real();
                 pupil.at(i) *= std::sqrt(cosO / cosI);
             }
         }
     }
     static void apply_film_stack_to_pupil_radial(std::vector<matrix2x3<cT>>& pupil, 
-        T NA, T lambda, cT immersion_index, T depth, 
+        T NA, T lambda, cT index, T depth, 
         const std::vector<typename film_stack_solver<T>::meterial>& meterials)
     {
         film_stack_solver<T> solver(lambda, 1.0);
