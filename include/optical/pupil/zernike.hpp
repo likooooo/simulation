@@ -78,9 +78,11 @@ template<class T, size_t M = 4> struct zernike_radial_table
         }
         return zernike_image;
     }
+    
+    //== M0 像差是圆对称的, 可以放到 radial 中计算
     radial apply_aberration_m0_to_pupil(std::vector<matrix2x3<cT>>& pupil_radial, const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs) const
     {
-        radial weights{0};
+        radial combination_M0;
         for(const auto [m, l, coef] : poly_coefs){
             if(0 != m || 0 == coef) continue;
             if(l >= L.at(m).size()){
@@ -91,47 +93,42 @@ template<class T, size_t M = 4> struct zernike_radial_table
                 continue;
             }
             assert(coef.imag() == 0);
-            weights += (zk_radials.at(index(m, l)) * coef.real());
+            if(0 == combination_M0.size()) combination_M0 = (zk_radials.at(index(m, l)) * coef.real());
+            else combination_M0 += (zk_radials.at(index(m, l)) * coef.real());
         }
-        if(pupil_radial.size() == weights.size()){
-            for(size_t i = 0; i < pupil_radial.size(); i++){
-                pupil_radial.at(i) *= std::exp(cT(0, 1) * weights.at(i));
-            }
+        if(pupil_radial.size() == combination_M0.size()){
+            for(size_t i = 0; i < pupil_radial.size(); i++) 
+                pupil_radial.at(i) *= std::exp(cT(0, 1) * combination_M0.at(i));
         }
         else{
-            rT step = rT(weights.size()) /  rT(pupil_radial.size());
-            for(size_t i = 0; i < pupil_radial.size(); i++){
-                pupil_radial.at(i) *= std::exp(cT(0, 1) * cubic_interpolate<T>::eval(step * i, weights));
-            }
+            rT step = rT(combination_M0.size()) /  rT(pupil_radial.size());
+            for(size_t i = 0; i < pupil_radial.size(); i++)
+                pupil_radial.at(i) *= std::exp(cT(0, 1) * cubic_interpolate<T>::eval(step * i, combination_M0));
         }
-        return weights;
+        return combination_M0;
     }
    
-    std::vector<cT> gen_aberration_pupil_image(const vec2<size_t>& shape, const vec2<rT>& step /* NA / (shape -1) */, const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs) const
+    std::vector<rT> gen_aberration_pupil_image(const vec2<size_t>& shape, const vec2<rT>& step /* NA / (shape -1) */, rT cutoff_freq, const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs) const
     {
-        print_table(poly_coefs, {"M", "L", "coef"});
-        std::vector<cT> pupil_image(shape[0] * shape[1]);
-        cT * p = pupil_image.data();
-        kernels::center_zero_loop_square_r<rT, 2>(shape, step, [&](const vec2<rT>& fxy, rT r){
-            r = std::sqrt(r);
-            if(r > 1.0) {
+        // print_table(poly_coefs, {"M", "L", "coef"});
+        std::vector<rT> pupil_image(shape[0] * shape[1], 0);
+        for(const auto [m, l, coef] : poly_coefs){
+            rT* p = pupil_image.data();
+            rT zernike_norm = std::sqrt(cal_norm(m, l));
+            const auto& zernike_r = zk_radials.at(index(m, l));
+            kernels::center_zero_loop_square_r<rT, 2>(shape, step, [&](const vec2<rT>& fxy, rT r){
+                r = std::sqrt(r);
+                rT total_phase = 0;
+                if(r <= cutoff_freq) {
+                    r /= cutoff_freq;
+                    rT rVal = cubic_interpolate<rT>::eval(r * zernike_r.size() , zernike_r);
+                    cT theta = std::exp(cT(0, this->theta(m, fxy[1], fxy[0])));
+                    total_phase = (theta.real() * coef.real() + theta.imag() * coef.imag()) * rVal / zernike_norm;
+                } 
+                *p += total_phase;
                 p++;
-                return;
-            }
-            cT total_phase = 0;
-            for(const auto [m, l, coef] : poly_coefs){
-                const auto& zernike_r = zk_radials.at(index(m, l));
-                std::cout << zernike_r << std::endl;
-                rT r_pixel = cubic_interpolate<rT>::eval(r * zernike_r.size() , zernike_r);
-                float theta = this->theta(m, fxy[1], fxy[0]);
-                total_phase += (coef.real() * theta * r_pixel + coef.imag() * (0.5_PI - theta) * r_pixel); 
-
-                // cT angle = std::pow(cT(c, s),  int(m));
-                // total_phase += (angle.real() * coef.real() * r_pixel + angle.imag() * coef.imag() * r_pixel); 
-            }
-            *p = std::exp(cT(2_PI_I) * total_phase);
-            p++;
-        });
+            });
+        }
         return pupil_image;
     }
     // {
