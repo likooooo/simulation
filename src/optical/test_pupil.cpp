@@ -135,15 +135,13 @@ template<class T> struct test
 };
 
 
-template<class T> std::vector<matrix2x3<complex_t<T>>>  gen_pupil_array(size_t N, T lambda, T defocus, T NA, complex_t<T> nk = complex_t<T>(1))
+template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(size_t N, T lambda, T defocus, T NA, complex_t<T> nk = complex_t<T>(1))
 {
     using rT = real_t<T>;
     using cT = complex_t<T>;
     using print_type = std::vector<std::tuple<vec3<cT>, vec3<cT>>>;
     std::vector<matrix2x3<cT>> pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(N, NA, nk);
-    print_table(reinterpret_cast<print_type&>(pupil_radials), {"TM", "TE"});
-    pupil_radial<T>::apply_defocus_to_pupil_radial(pupil_radials, nk, defocus, NA, lambda);
-    print_table(reinterpret_cast<print_type&>(pupil_radials), {"TM", "TE"});
+    // print_table(reinterpret_cast<print_type&>(pupil_radials), {"TM", "TE"});
     using zk_table = zernike_radial_table<T, 10>;
     zk_table zernike(pupil_radials.size());
     // zernike.apply_aberration_m0_to_pupil(pupil_radials, {std::tuple<size_t, size_t, T>(0, 0, 1), std::tuple<size_t, size_t, T>(2, 0, 1)});
@@ -184,6 +182,17 @@ template<class T> std::vector<matrix2x3<complex_t<T>>>  gen_pupil_array(size_t N
         imshow(real, convert_to<std::vector<size_t>>(shape));
     }
     return pupil_image;
+}
+template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T>>>& pupil, vec2<size_t> shape, 
+    T crao, T azimuth,
+    T delta_z_mask, T delta_z_imaging,
+    T NA, T lambda, T reduction_ratio, complex_t<T> nkIn, complex_t<T> nkOut)
+{
+    // pupil_radial<T>::apply_defocus_to_pupil_radial(pupil_radials, nk, delta_z_mask, NA, lambda);
+
+    
+    // pupil_radial<T>::apply_defocus_to_pupil_radial(pupil_radials, nk, delta_z_imaging, NA, lambda);
+
 }
 
 int main()
