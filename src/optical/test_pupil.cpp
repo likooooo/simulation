@@ -183,12 +183,46 @@ template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(size_t N,
     }
     return pupil_image;
 }
-template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T>>>& pupil, vec2<size_t> shape, 
+template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T>>>& pupil, vec2<size_t> shape, vec2<T> step
     T crao, T azimuth,
     T delta_z_mask, T delta_z_imaging,
     T NA, T lambda, T reduction_ratio, complex_t<T> nkIn, complex_t<T> nkOut)
 {
-    // pupil_radial<T>::apply_defocus_to_pupil_radial(pupil_radials, nk, delta_z_mask, NA, lambda);
+    using cT = complex_t<T>;
+    const vec2<T> shift{std::sin(crao) * std::sin(azimuth), std::sin(crao) * std::cos(azimuth)};
+    matrix2x3<cT>* p = pupil.data();
+    kernels::center_zero_loop_square_r<T, 2>(shape, step, 
+        [&](const vec2<T> fyx, T kr_2){
+            const vec2<T> fr = (fyx + shift); 
+            const vec2<T> fR = fr / reduction_ratio;
+            T r = std::sqrt(vector_norm(fr));
+            T R = std::sqrt(vector_norm(fR));
+            if(std::min(R, r) <= 1){
+                (*p) *= std::exp(cT(2_PI_I) * delta_z_mask/ lambda * std::sqrt(nkOut * nkOut - R * R));
+                const auto [sintR, costR] = R < 1e-6 ? vec2<T>{T(0), T(1)} : (fR / R);
+                T fzr = std::sqrt(T(1) - r * r);
+                T fzR = std::sqrt(T(1) - R * R);
+                matrix2x3<cT> Hc{
+                    fzR, 0, -fR[1],
+                    0, fzR, -fR[0],
+                };
+                Hc[0] /= std::sqrt(vector_norm(Hc[0]));
+                Hc[1] /= std::sqrt(vector_norm(Hc[1]));
+                assert(0 == vector_norm(Hc[0] * vec3<T>{fR[1], fR[0], fzR}));
+                assert(0 == vector_norm(Hc[1] * vec3<T>{fR[1], fR[0], fzR}));
+            
+            }
+            
+            const T kr = std::sqrt(kr_2);
+            const T kz = std::sqrt(nkOut * nkOut - kr_2);
+            
+
+            
+            *p *= std::exp(cT(2_PI_I) * delta_z_mask/ lambda * kz);
+            p++;
+        }
+    );
+
 
     
     // pupil_radial<T>::apply_defocus_to_pupil_radial(pupil_radials, nk, delta_z_imaging, NA, lambda);
