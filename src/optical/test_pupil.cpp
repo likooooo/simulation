@@ -134,43 +134,67 @@ template<class T> struct test
     }
 };
 
+
+template<class T> std::vector<matrix2x3<complex_t<T>>>  gen_pupil_array(size_t N, T lambda, T defocus, T NA, complex_t<T> nk = complex_t<T>(1))
+{
+    using rT = real_t<T>;
+    using cT = complex_t<T>;
+    using print_type = std::vector<std::tuple<vec3<cT>, vec3<cT>>>;
+    std::vector<matrix2x3<cT>> pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(N, NA, nk);
+    print_table(reinterpret_cast<print_type&>(pupil_radials), {"TM", "TE"});
+    pupil_radial<T>::apply_defocus_to_pupil_radial(pupil_radials, nk, defocus, NA, lambda);
+    print_table(reinterpret_cast<print_type&>(pupil_radials), {"TM", "TE"});
+    using zk_table = zernike_radial_table<T, 10>;
+    zk_table zernike(pupil_radials.size());
+    // zernike.apply_aberration_m0_to_pupil(pupil_radials, {std::tuple<size_t, size_t, T>(0, 0, 1), std::tuple<size_t, size_t, T>(2, 0, 1)});
+    vec2<size_t> shape{N, N};
+    vec2<T> step{4 * NA / (N - 1), 4 * NA / (N - 1)}; // [-2NA, 2NA]
+    std::vector<T> zernike_image = zernike.gen_aberration_pupil_image(shape, step, NA, {
+        std::tuple<size_t, size_t, cT>(0, 0, cT(2_PI)), 
+        std::tuple<size_t, size_t, cT>(2, 0, cT(2_PI, 0))}
+    );
+    std::vector<matrix2x3<cT>> pupil_image(zernike_image.size());
+    matrix2x3<cT>* p = pupil_image.data();
+    T* pZernike = zernike_image.data();
+    kernels::center_zero_loop_square_r<rT, 2>(shape, step, [&](const vec2<rT>& fxy, rT r){
+        r = std::sqrt(r);
+        matrix2x3<cT> val{0};
+        if(r <= NA) {
+            r /= NA;
+            val = cubic_interpolate<rT>::eval(r * pupil_radials.size() , pupil_radials);
+            val *= std::exp(cT(0, *pZernike));
+        } 
+        *p = val;
+        pZernike++;
+        p++;
+    });
+    const auto&[TE_x, TE_y, TE_z, TM_x, TM_y, TM_z] = decompose_from<matrix2x3<cT>, 
+        cT, cT, cT, 
+        cT, cT, cT>(pupil_image);
+    {
+        const auto&[real, imag] = decompose_from<cT, rT, rT>(TE_y);
+        imshow(real, convert_to<std::vector<size_t>>(shape));
+    }
+    {
+        const auto&[real, imag] = decompose_from<cT, rT, rT>(TM_x);
+        imshow(real, convert_to<std::vector<size_t>>(shape));
+    }
+    {
+        const auto&[real, imag] = decompose_from<cT, rT, rT>(TM_z);
+        imshow(real, convert_to<std::vector<size_t>>(shape));
+    }
+    return pupil_image;
+}
+
 int main()
 {
     py_engine::init();
+    gen_pupil_array<float>(100, 13.5, 0, 0.8);
+    return 0;
     test<float> t;
     t.get_anamorphic_pupil();
     // for(size_t i = 0; i < 100; i++){
     //     t.test_single_layer();
     //     printf("test-%zu end\n\n", i);
     // }
-}
-
-template<class T> void gen_pupil_array(size_t N, T lambda, T defocus, T NA, complex_t<T> nk = complex_t<T>(1))
-{
-    using cT = complex_t<T>;
-    std::vector<matrix2x3<complex_t<T>>> pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(N, NA, nk);
-    pupil_radial<T>::apply_defocus_to_pupil_radial(pupil_radials, nk, defocus, NA, lambda);
-    using zk_table = zernike_radial_table<T, 10>;
-    zk_table zernike(pupil_radials.size());
-    // zernike.apply_aberration_m0_to_pupil(pupil_radials, {std::tuple<size_t, size_t, T>(0, 0, 1), std::tuple<size_t, size_t, T>(2, 0, 1)});
-    vec2<size_t> shape{N, N};
-    vec2<T> step{NA / (N - 1), NA / (N - 1)};
-    auto image = zernike.gen_aberration_pupil_image(shape, step, NA, {
-        std::tuple<size_t, size_t, cT>(0, 0, 1), 
-        std::tuple<size_t, size_t, cT>(2, 0, 1)}
-    );
-    kernels::center_zero_loop_square_r<rT, 2>(shape, step, [&](const vec2<rT>& fxy, rT r){
-        r = std::sqrt(r);
-        rT total_phase = 0;
-        if(r <= NA) {
-            r /= NA;
-            rT rVal = cubic_interpolate<rT>::eval(r * zernike_r.size() , zernike_r);
-            cT theta = std::exp(cT(0, this->theta(m, fxy[1], fxy[0])));
-            total_phase = (theta.real() * coef.real() + theta.imag() * coef.imag()) * rVal / zernike_norm;
-        } 
-        *p += total_phase;
-        p++;
-    });
-    // apply M0 aberrations
-    // TO aRRAY
 }

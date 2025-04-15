@@ -43,6 +43,7 @@ template<class T, size_t M = 4> struct zernike_radial_table
 
     std::array<radial, table_count> zk_radials;
     std::vector<std::pair<vec2<size_t>, std::vector<cT>>>  zernike_image;
+    zernike_radial_table() = default;
     zernike_radial_table(size_t points) {
         for(auto& v : zk_radials) v.resize(points);
         init_L0();
@@ -110,7 +111,6 @@ template<class T, size_t M = 4> struct zernike_radial_table
    
     std::vector<rT> gen_aberration_pupil_image(const vec2<size_t>& shape, const vec2<rT>& step /* NA / (shape -1) */, rT cutoff_freq, const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs) const
     {
-        // print_table(poly_coefs, {"M", "L", "coef"});
         std::vector<rT> pupil_image(shape[0] * shape[1], 0);
         for(const auto [m, l, coef] : poly_coefs){
             rT* p = pupil_image.data();
@@ -131,87 +131,6 @@ template<class T, size_t M = 4> struct zernike_radial_table
         }
         return pupil_image;
     }
-    // {
-    //     // std::map<size_t, vec2<std::vector<cT>>> radial_intergral_L;
-    //     // for(const auto [m, l, coef_cos_sin] : poly_coefs){
-    //     //     if(0 == m || 0 == coef_cos_sin) continue;
-    //     //     if(l >= L.at(m).size()){
-    //     //         auto type_str = TypeReflection<decltype(*this)>;
-    //     //         auto L_str = to_string(L);
-    //     //         debug("%s's L=%s\n", type_str.c_str(), L_str.c_str());
-    //     //         error(poly_coefs, {"* input args", "m", "l", "coefficients"});
-    //     //         continue;
-    //     //     }
-    //     //     const auto& r = zk_radials.at(index(m, l));
-    //     //     auto& [sum_cos, sum_sin] = radial_intergral_L[m];
-    //     //     auto [cos_wgt, sin_wgt] = coef_cos_sin;
-    //     //     if(0 == sum.size()){ 
-    //     //         sum_cos = convert_t<std::vector<cT>>(r) * coef_cos_sin;
-    //     //         sum_sin = convert_t<std::vector<cT>>(r) * std::conj(coef_cos_sin);
-    //     //     }
-    //     //     else{
-    //     //         sum_cos += convert_t<std::vector<cT>>(r) * coef_cos_sin;
-    //     //         sum_sin += convert_t<std::vector<cT>>(r) * std::conj(coef_cos_sin);
-    //     //     }
-    //     // }
-
-    //     // std::vector<cT> pupil_image(shape[0] * shape[1]);
-    //     // kernels::center_zero_loop_square_r<rT, 2>(shape, step, [](const std::array<rT, N>& fxy, const rT r_pow_2){
-    //     //     if(r_pow_2 > 1.0) return;
-    //     //     const auto [c, s] = fxy / std::sqrt(r_pow_2);
-    //     //     cT angle_step(c, s);
-    //     //     cT total_phase = 0;
-            
-    //     //     for(const auto [m, l, coef] : poly_coefs){
-
-    //     //     }
-    //     //     for(const auto& [m, intergral_L] : radial_intergral_L){
-    //     //         cT a = std::pow(angle_step,  m - 1);
-    //     //         const auto& [sum_cos, sum_sin] = intergral_L;
-    //     //         total_phase += (sum_cos.at() * std::conj(a) + sum_sin * a) / rT(2);
-    //     //     }
-    //     // });
-    //     // std::vector<cT> weights;
-    //     // for(const auto [m, l, coef] : poly_coefs){
-    //     //     if(0 == m || 0 == coef) continue;
-    //     //     if(l >= L.at(m).size()){
-    //     //         auto type_str = TypeReflection<decltype(*this)>;
-    //     //         auto L_str = to_string(L);
-    //     //         debug("%s's L=%s\n", type_str.c_str(), L_str.c_str());
-    //     //         error(poly_coefs, {"* input args", "m", "l", "coefficients"});
-    //     //         continue;
-    //     //     }
-    //     //     auto r = zk_radials.at(index(m, l));
-    //     //     std::vector<cT> cos_sin(r.size(), coef);
-    //     //     if(0 == weights.size()) weights = cos_sin * r;
-    //     //     else weights += (cos_sin * r);
-    //     // }
-    //     // if(pupil_radial.size() == weights.size()){
-    //     //     for(size_t i = 0; i < pupil_radial.size(); i++){
-    //     //         pupil_radial.at(i) *= std::exp(cT(2_PI_I) * weights.at(i));
-    //     //     }
-    //     // }
-    //     // else{
-    //     //     rT step = rT(weights.size()) /  rT(pupil_radial.size());
-    //     //     for(size_t i = 0; i < pupil_radial.size(); i++){
-    //     //         pupil_radial.at(i) *= std::exp(cT(2_PI_I) * cubic_interpolate<T>::eval(step * i, weights));
-    //     //     }
-    //     // }
-    //     // return pupil_image;
-    //     // if(pupil_radial.size() == weights.size()){
-    //     //     for(size_t i = 0; i < pupil_radial.size(); i++){
-    //     //         pupil_radial.at(i) *= std::exp(cT(2_PI_I) * weights.at(i));
-    //     //     }
-    //     // }
-    //     // else{
-    //     //     rT step = rT(weights.size()) /  rT(pupil_radial.size());
-    //     //     for(size_t i = 0; i < pupil_radial.size(); i++){
-    //     //         pupil_radial.at(i) *= std::exp(cT(2_PI_I) * cubic_interpolate<T>::eval(step * i, weights));
-    //     //     }
-    //     // }
-    //     return weights;
-
-    // }
 private:
     constexpr void init_L0()
     {

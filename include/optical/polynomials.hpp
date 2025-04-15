@@ -19,9 +19,9 @@ struct lagrange_interpolate
         index = std::min(index, unit_count -1 - Order);
         return std::make_pair(index, get_coef(x - index));
     } 
-    template<class TContainer>constexpr static T eval(const T x, const TContainer& vec){
+    template<class TContainer>constexpr static typename TContainer::value_type eval(const T x, const TContainer& vec){
         auto [index, info] = interpolate_info(x, vec.size());
-        T result = 0;
+        typename TContainer::value_type result{0};
         for(size_t i = 0; i < N; i++){
             result += vec.at(index + i) * info.at(i);
         }
