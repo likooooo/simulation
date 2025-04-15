@@ -1,5 +1,6 @@
 #include <optical/pupil/pupil.hpp>
 #include <optical/pupil/zernike.hpp>
+#include <kernels/kernel_loop.hpp>
 #include <assert.h>
 #include <random>
 #include <py_helper.hpp>
@@ -146,11 +147,30 @@ int main()
 
 template<class T> void gen_pupil_array(size_t N, T lambda, T defocus, T NA, complex_t<T> nk = complex_t<T>(1))
 {
-    std::vector<matrix2x3<complex_t<T>>> pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(5, NA, nk);
+    using cT = complex_t<T>;
+    std::vector<matrix2x3<complex_t<T>>> pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(N, NA, nk);
     pupil_radial<T>::apply_defocus_to_pupil_radial(pupil_radials, nk, defocus, NA, lambda);
     using zk_table = zernike_radial_table<T, 10>;
     zk_table zernike(pupil_radials.size());
-    zernike.apply_aberration_m0_to_pupil(pupil_radials, {std::tuple<size_t, size_t, T>(0, 0, 1), std::tuple<size_t, size_t, T>(2, 0, 1)});
+    // zernike.apply_aberration_m0_to_pupil(pupil_radials, {std::tuple<size_t, size_t, T>(0, 0, 1), std::tuple<size_t, size_t, T>(2, 0, 1)});
+    vec2<size_t> shape{N, N};
+    vec2<T> step{NA / (N - 1), NA / (N - 1)};
+    auto image = zernike.gen_aberration_pupil_image(shape, step, NA, {
+        std::tuple<size_t, size_t, cT>(0, 0, 1), 
+        std::tuple<size_t, size_t, cT>(2, 0, 1)}
+    );
+    kernels::center_zero_loop_square_r<rT, 2>(shape, step, [&](const vec2<rT>& fxy, rT r){
+        r = std::sqrt(r);
+        rT total_phase = 0;
+        if(r <= NA) {
+            r /= NA;
+            rT rVal = cubic_interpolate<rT>::eval(r * zernike_r.size() , zernike_r);
+            cT theta = std::exp(cT(0, this->theta(m, fxy[1], fxy[0])));
+            total_phase = (theta.real() * coef.real() + theta.imag() * coef.imag()) * rVal / zernike_norm;
+        } 
+        *p += total_phase;
+        p++;
+    });
     // apply M0 aberrations
     // TO aRRAY
 }
