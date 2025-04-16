@@ -141,6 +141,7 @@ template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T
 {
     using cT = complex_t<T>;
     const vec2<T> shift{std::sin(crao) * std::sin(azimuth), std::sin(crao) * std::cos(azimuth)};
+    const pupil_na = pupil_na(NA);
     matrix2x3<cT>* p = pupil.data();
     // Shift matrix
     kernels::center_zero_loop_square_r<T, 2>(shape, step, 
@@ -149,71 +150,108 @@ template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T
             const vec2<T> fR = fr / reduction_ratio;
             T r = std::sqrt(vector_norm(fr));
             T R = std::sqrt(vector_norm(fR));
-            if(std::max(R, r) <= 1){
+            if(std::max(R, r) <= pupil_na){
                 //== apply object-defocus to pupil
                 if(0 != delta_z_mask) (*p) *= std::exp(cT(2_PI_I) * delta_z_mask/ lambda * std::sqrt(nkOut * nkOut - R * R));
                 // const auto [sintR, costR] = R < 1e-6 ? vec2<T>{T(0), T(1)} : (fR / R);
-                T fzr = std::sqrt(T(1) - r * r);
-                T fzR = std::sqrt(T(1) - R * R);
+                T fzr = std::sqrt(T(1) - vector_norm(fr));
+                T fzR = std::sqrt(T(1) - vector_norm(fR));
                 matrix2x3<cT> Hc{
                     fzR, 0, -fR[1],
                     0, fzR, -fR[0],
                 };
+                assert(is_almost_equal<T>(std::abs((Hc[0] * vec3<cT>{fR[1], fR[0], fzR}) | cT(1)), 0));
+                assert(is_almost_equal<T>(std::abs((Hc[1] * vec3<cT>{fR[1], fR[0], fzR}) | cT(1)), 0));
                 Hc[0] /= std::sqrt(vector_norm(Hc[0]));
                 Hc[1] /= std::sqrt(vector_norm(Hc[1]));
-                assert(0 == vector_norm(Hc[0] * vec3<T>{fR[1], fR[0], fzR}));
-                assert(0 == vector_norm(Hc[1] * vec3<T>{fR[1], fR[0], fzR}));
-                
                 //== rotate Hc to sp
-                
-                const matrix3x3<cT> rotate_transpose{
+                T theta = std::atan2(fR[0], fR[1]);
+                using std::sin, std::cos;
+                const matrix3x3<cT> rotate_to_sp{
+                    // fR[0] / R,     -fR[1]/R,       0,
+                    // fR[1] * fzR/R, fR[0] * fzR/R, -R, 
+                    // fR[1],         fR[0],         fzR
+                    sin(theta)      , -cos(theta)     , 0,
+                    cos(theta) * fzR, sin(theta) * fzR, -R,
+                    fR[1]           , fR[0]           , fzR
+                };
+                const matrix3x3<cT> rotate_to_sp_1{
                     fR[0] / R,     -fR[1]/R,       0,
                     fR[1] * fzR/R, fR[0] * fzR/R, -R, 
                     fR[1],         fR[0],         fzR
                 };
+                auto eps = rotate_to_sp_1 - rotate_to_sp;
+
                 const matrix2x3<cT> Tc{
-                    rotate_transpose | Hc[0],
-                    rotate_transpose | Hc[1]
+                    rotate_to_sp | Hc[0],
+                    rotate_to_sp | Hc[1]
                 };
                 //== projection polarization to sp cood
-                const matrix3x3<cT> Mr_transpose{
+                const matrix3x3<cT> Mr{
                     p->at(0)[0], p->at(1)[0], r,
                     p->at(0)[1], p->at(1)[1], 0,
                     p->at(0)[2], p->at(1)[2], fzr
                 };
+                Hc[0] = Mr | Tc[0];
+                Hc[1] = Mr | Tc[1];
+
+                const auto [s, c] = r < 1e-6 ? vec2<T>{0, 1} : fr/ r;
+                const matrix3x3<cT> rorate_to_xyz{
+                    cos(theta) , sin(theta), 0,
+                    -sin(theta), cos(theta), 0,
+                    0          , 0         , 1
+                };
+                p->at(0) = rorate_to_xyz | Hc[0];
+                p->at(1) = rorate_to_xyz | Hc[1];
             }
-            // apply obliquitt factor
-            // apply imaging defocus
+            //== apply obliquitt factor
+            // fr = std::sqrt(kr_2)
+            // if (fr > nI.real() || Or > nO.real()) {
+            //     obliquityFactor = OLR0;
+            // } else {
+            //     OLreal cosThetaO = sqrt((nO.real()) * (nO.real()) - Or*Or) / (nO.real());
+            //     OLreal cosThetaI = sqrt((nI.real()) * (nI.real()) - fr*fr) / (nI.real());
+            //     if(cosThetaI<TOO_SMALL){
+            //         obliquityFactor = OLcomplex(0.0);
+            //     }else{
+            //         obliquityFactor = (sqrt(cosThetaO / cosThetaI));
+            //     }
+            // }
+            //== apply imaging defocus
             p++;
         }
     );
 }
-
-template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(size_t N, T lambda, T defocus, T NA, complex_t<T> nk = complex_t<T>(1))
+template<class T> T get_pupil_na(T NA)
+{
+    return T(0.4) >= NA ? T(1) : NA;
+}
+template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(T lambda, T defocus, T NA, complex_t<T> nk = complex_t<T>(1), T freq_step = 0.001)
 {
     using rT = real_t<T>;
     using cT = complex_t<T>;
     using print_type = std::vector<std::tuple<vec3<cT>, vec3<cT>>>;
-    std::vector<matrix2x3<cT>> pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(N, NA, nk);
-    // print_table(reinterpret_cast<print_type&>(pupil_radials), {"TM", "TE"});
     using zk_table = zernike_radial_table<T, 10>;
-    zk_table zernike(pupil_radials.size());
-    // zernike.apply_aberration_m0_to_pupil(pupil_radials, {std::tuple<size_t, size_t, T>(0, 0, 1), std::tuple<size_t, size_t, T>(2, 0, 1)});
-    vec2<size_t> shape{N, N};
-    vec2<T> step{4 * NA / (N - 1), 4 * NA / (N - 1)}; // [-2NA, 2NA]
-    std::vector<T> zernike_image = zernike.gen_aberration_pupil_image(shape, step, NA, {
+    assert(0 <= NA && NA <= 1);
+    //== [-2NA, 2NA]
+    const size_t N = 2 * (std::ceil(2*NA/freq_step) + 1);
+    const vec2<size_t> shape{N, N};
+    const vec2<T> step{freq_step, freq_step}; 
+    const T pupil_na = get_pupil_na(NA);
+    std::vector<matrix2x3<cT>> pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(N, pupil_na, nk);
+    const std::vector<T> zernike_image = zk_table(pupil_radials.size()).gen_aberration_pupil_image(shape, step, NA, {
         std::tuple<size_t, size_t, cT>(0, 0, cT(2_PI)), 
         std::tuple<size_t, size_t, cT>(2, 0, cT(2_PI, 0))}
     );
+
+    const T* pZernike = zernike_image.data();
     std::vector<matrix2x3<cT>> pupil_image(zernike_image.size());
     matrix2x3<cT>* p = pupil_image.data();
-    T* pZernike = zernike_image.data();
     kernels::center_zero_loop_square_r<rT, 2>(shape, step, [&](const vec2<rT>& fxy, rT r){
         r = std::sqrt(r);
         matrix2x3<cT> val{0};
-        if(r <= NA) {
-            r /= NA;
-            val = cubic_interpolate<rT>::eval(r * pupil_radials.size() , pupil_radials);
+        if(r <= pupil_na) {
+            val = cubic_interpolate<rT>::eval(r * pupil_radials.size(), pupil_radials);
             val *= std::exp(cT(0, *pZernike));
         } 
         *p = val;
@@ -242,7 +280,7 @@ template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(size_t N,
 int main()
 {
     py_engine::init();
-    gen_pupil_array<float>(3202, 13.5, 0, 0.8);
+    gen_pupil_array<float>(13.5, 0, 0.8);
     return 0;
     test<float> t;
     t.get_anamorphic_pupil();
