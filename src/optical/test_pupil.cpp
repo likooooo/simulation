@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <random>
 #include <py_helper.hpp>
-
+#include <fft/spectrum_analysis.hpp>
 template<class T> struct test
 {
     using pupil_print = debug_print<pupil_radial<T>>;
@@ -134,6 +134,60 @@ template<class T> struct test
     }
 };
 
+template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T>>>& pupil, vec2<size_t> shape, vec2<T> step,
+    T crao, T azimuth,
+    T delta_z_mask, T delta_z_imaging,
+    T NA, T lambda, T reduction_ratio, complex_t<T> nkIn, complex_t<T> nkOut)
+{
+    using cT = complex_t<T>;
+    const vec2<T> shift{std::sin(crao) * std::sin(azimuth), std::sin(crao) * std::cos(azimuth)};
+    matrix2x3<cT>* p = pupil.data();
+    // Shift matrix
+    kernels::center_zero_loop_square_r<T, 2>(shape, step, 
+        [&](const vec2<T> fyx, T kr_2){
+            const vec2<T> fr = (fyx + shift); 
+            const vec2<T> fR = fr / reduction_ratio;
+            T r = std::sqrt(vector_norm(fr));
+            T R = std::sqrt(vector_norm(fR));
+            if(std::max(R, r) <= 1){
+                //== apply object-defocus to pupil
+                if(0 != delta_z_mask) (*p) *= std::exp(cT(2_PI_I) * delta_z_mask/ lambda * std::sqrt(nkOut * nkOut - R * R));
+                // const auto [sintR, costR] = R < 1e-6 ? vec2<T>{T(0), T(1)} : (fR / R);
+                T fzr = std::sqrt(T(1) - r * r);
+                T fzR = std::sqrt(T(1) - R * R);
+                matrix2x3<cT> Hc{
+                    fzR, 0, -fR[1],
+                    0, fzR, -fR[0],
+                };
+                Hc[0] /= std::sqrt(vector_norm(Hc[0]));
+                Hc[1] /= std::sqrt(vector_norm(Hc[1]));
+                assert(0 == vector_norm(Hc[0] * vec3<T>{fR[1], fR[0], fzR}));
+                assert(0 == vector_norm(Hc[1] * vec3<T>{fR[1], fR[0], fzR}));
+                
+                //== rotate Hc to sp
+                
+                const matrix3x3<cT> rotate_transpose{
+                    fR[0] / R,     -fR[1]/R,       0,
+                    fR[1] * fzR/R, fR[0] * fzR/R, -R, 
+                    fR[1],         fR[0],         fzR
+                };
+                const matrix2x3<cT> Tc{
+                    rotate_transpose | Hc[0],
+                    rotate_transpose | Hc[1]
+                };
+                //== projection polarization to sp cood
+                const matrix3x3<cT> Mr_transpose{
+                    p->at(0)[0], p->at(1)[0], r,
+                    p->at(0)[1], p->at(1)[1], 0,
+                    p->at(0)[2], p->at(1)[2], fzr
+                };
+            }
+            // apply obliquitt factor
+            // apply imaging defocus
+            p++;
+        }
+    );
+}
 
 template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(size_t N, T lambda, T defocus, T NA, complex_t<T> nk = complex_t<T>(1))
 {
@@ -166,6 +220,7 @@ template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(size_t N,
         pZernike++;
         p++;
     });
+    apply_anamorphic_effect<rT>(pupil_image, shape, step, 9_PI/180, 45_PI/180, 0, 0, NA, lambda, 1, 1, 1);
     const auto&[TE_x, TE_y, TE_z, TM_x, TM_y, TM_z] = decompose_from<matrix2x3<cT>, 
         cT, cT, cT, 
         cT, cT, cT>(pupil_image);
@@ -183,56 +238,11 @@ template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(size_t N,
     }
     return pupil_image;
 }
-template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T>>>& pupil, vec2<size_t> shape, vec2<T> step
-    T crao, T azimuth,
-    T delta_z_mask, T delta_z_imaging,
-    T NA, T lambda, T reduction_ratio, complex_t<T> nkIn, complex_t<T> nkOut)
-{
-    using cT = complex_t<T>;
-    const vec2<T> shift{std::sin(crao) * std::sin(azimuth), std::sin(crao) * std::cos(azimuth)};
-    matrix2x3<cT>* p = pupil.data();
-    kernels::center_zero_loop_square_r<T, 2>(shape, step, 
-        [&](const vec2<T> fyx, T kr_2){
-            const vec2<T> fr = (fyx + shift); 
-            const vec2<T> fR = fr / reduction_ratio;
-            T r = std::sqrt(vector_norm(fr));
-            T R = std::sqrt(vector_norm(fR));
-            if(std::min(R, r) <= 1){
-                (*p) *= std::exp(cT(2_PI_I) * delta_z_mask/ lambda * std::sqrt(nkOut * nkOut - R * R));
-                const auto [sintR, costR] = R < 1e-6 ? vec2<T>{T(0), T(1)} : (fR / R);
-                T fzr = std::sqrt(T(1) - r * r);
-                T fzR = std::sqrt(T(1) - R * R);
-                matrix2x3<cT> Hc{
-                    fzR, 0, -fR[1],
-                    0, fzR, -fR[0],
-                };
-                Hc[0] /= std::sqrt(vector_norm(Hc[0]));
-                Hc[1] /= std::sqrt(vector_norm(Hc[1]));
-                assert(0 == vector_norm(Hc[0] * vec3<T>{fR[1], fR[0], fzR}));
-                assert(0 == vector_norm(Hc[1] * vec3<T>{fR[1], fR[0], fzR}));
-            
-            }
-            
-            const T kr = std::sqrt(kr_2);
-            const T kz = std::sqrt(nkOut * nkOut - kr_2);
-            
-
-            
-            *p *= std::exp(cT(2_PI_I) * delta_z_mask/ lambda * kz);
-            p++;
-        }
-    );
-
-
-    
-    // pupil_radial<T>::apply_defocus_to_pupil_radial(pupil_radials, nk, delta_z_imaging, NA, lambda);
-
-}
 
 int main()
 {
     py_engine::init();
-    gen_pupil_array<float>(100, 13.5, 0, 0.8);
+    gen_pupil_array<float>(3202, 13.5, 0, 0.8);
     return 0;
     test<float> t;
     t.get_anamorphic_pupil();
