@@ -22,12 +22,13 @@ public:
     {
         std::vector<matrix2x3<cT>> pupil(numPoints);
         std::vector<T> kr = make_kr(NA, numPoints);
+        const auto [n, k] = nI;
         std::transform(kr.begin(), kr.end(), pupil.begin(), [&](auto kr){
             return matrix2x3<cT>{
                 //== TE
                 0, 1, 0, 
                 //== TM
-                std::sqrt(nI * nI - kr * kr) / nI , 0, -kr/nI 
+                std::sqrt(n * n - kr * kr) / n , 0, -kr/n 
             };
         });
         return pupil;
@@ -75,26 +76,6 @@ public:
             p.at(0) = solver.solve_field(p.at(0), E_transfer_matrix.at(0).at(0), E_at_depth, B_at_depth, B_at_depth);
             p.at(1) = solver.solve_field(p.at(1), E_transfer_matrix.at(0).at(0), E_at_depth, B_at_depth, B_at_depth);
         }
-    }
-
-    static std::vector<matrix2x3<cT>> to_image(const std::vector<matrix2x3<cT>>& r, vec2<size_t> shape, rT NA)
-    {
-        std::vector<matrix2x3<cT>> image(shape.at(0) * shape.at(1));
-        
-        matrix2x3<cT>* p = image.data();
-        rT square_NA = NA * NA;
-        kernels::center_zero_loop_square_r(shape, {rT(1) / shape.at(1), rT(1)/ shape.at(0)}, [&](std::array<rT, 2> indexs, rT square_r){
-            if(square_r < square_NA)
-            {
-                // *p = 
-            }
-            else
-            {
-                *p = {0};
-            }
-            p++;
-        });
-        return image;
     }
 };
 
