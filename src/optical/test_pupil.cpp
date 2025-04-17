@@ -231,6 +231,7 @@ template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T
                 obliquityFactor *= std::exp(phase_imaging_defocus);
             } 
            *p *= obliquityFactor;
+           p++;
         }
     );
     pupil.swap(pupil_final);
@@ -309,7 +310,9 @@ template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(T lambda,
 
     apply_anamorphic_effect<rT>(pupil_image, shape, step, 9_PI/180, 45_PI/180, 0, 0, NA, lambda, 1, 1);
     //== max error 1e-2
-    // pupil_golden_check({"pupil_sp_projection_TE_y.bin", "pupil_sp_projection_TM_x.bin", "pupil_sp_projection_TM_z.bin"});
+    pupil_golden_check({"pupil_sp_projection_TE_y.bin", "pupil_sp_projection_TM_x.bin", "pupil_sp_projection_TM_z.bin"});
+    //==
+    // pupil_golden_check({"pupil_final_TE_y.bin", "pupil_final_TM_x.bin", "pupil_final_TM_z.bin"});
 
 
     // system("scp like@workstation-guibohan:/home/like/YuWei/LibraBfiLitho/debugLithoEUV/src/examples/fdtd/demo1/output/Intermediate/x29y9p0[]/GetAnamorphicPupil:3177_rank-1_*_x3202_y3202.exact ./");

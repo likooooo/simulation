@@ -1,6 +1,18 @@
 #pragma once
 #include <type_traist_notebook/type_traist.hpp>
+#include <kernels/kernel_loop.hpp>
 
+template <class T, size_t N, size_t Order> struct nested_array {using type = vec<typename nested_array<T, N, Order - 1>::type, N>;};
+template <class T, size_t N> struct nested_array<T, N, 1> {using type = vec<T, N>;};
+template <class T, size_t N, size_t Order> using tensor = typename nested_array<T, N, Order>::type;
+template<size_t DIM, size_t I, class TTensor> auto& get(TTensor& t, const vec<size_t, DIM>& indexs) 
+{
+    if constexpr(I != DIM - 1){
+        return get<DIM, I + 1>(t.at(indexs.at(I)), indexs);
+    } else{
+        return t.at(indexs.at(I));
+    }
+}
 template<class T, size_t Order>
 struct lagrange_interpolate
 {
@@ -13,6 +25,28 @@ struct lagrange_interpolate
             coefs.at(n) = get_Ln_numerator(dx, n) / get_Ln_denominator(n);
         }
         return coefs;
+    }
+    template<size_t tensor_order, size_t ...Is> constexpr static tensor<T, N, tensor_order> __get_coefs_impl(const vec<T, tensor_order>& dxyzn, 
+        std::index_sequence<Is...>)
+    {
+        vec<std::array<T, N>, tensor_order> coefs;
+        for(size_t i = 0; i < tensor_order; i++) coefs.at(i) = get_coef(dxyzn.at(i));
+        tensor<T, N, tensor_order> t{0};
+        vec<size_t, tensor_order> shape{0};
+        shape.fill(N);
+        vec<size_t, tensor_order> step{0};
+        step.fill(1);
+        kernels::kernel_loop<size_t, tensor_order>(shape, [&](const vec<size_t, tensor_order>& unused_center, const vec<size_t, tensor_order>& indices){
+            T& n = get<tensor_order, 0>(t, indices);
+            T prod = 1;
+            for(size_t i = 0; i < tensor_order; i++) prod *= coefs.at(i).at(indices.at(i));
+            n = prod;
+        }); 
+        return t;
+    }
+    template<size_t tensor_order> constexpr static tensor<T, N, tensor_order> get_coefs(const vec<T, tensor_order>& dxyzn)
+    {
+        return __get_coefs_impl(dxyzn, std::make_index_sequence<tensor_order>{});
     }
     constexpr static std::pair<size_t, std::array<T, N>> interpolate_info(const T x, const size_t unit_count){
         size_t index = std::floor(x);

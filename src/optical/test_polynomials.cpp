@@ -1,5 +1,5 @@
 #include <optical/polynomials.hpp>
-
+#include <py_helper.hpp>
 template<class TIntgrate, class T>
 void test_gauss_function(T sigma, size_t N, T step)
 {
@@ -20,7 +20,7 @@ void test_gauss_function(T sigma, size_t N, T step)
     T intgrate_result = TIntgrate::eval(gauss, -step * N, step * N);
     std::cout << "(sum, intgrate) result = " << std::make_tuple(sum, intgrate_result) << std::endl;
 }
-int main()
+void test()
 {
     vec<double, 5> golden_result = {NAN, 0.682689492, 0.95449974, 0.9973002, 0.99993666};
     using intgrate = gauss_integrate<double, 5>;
@@ -42,4 +42,29 @@ int main()
     // std::cout << std::setprecision(10) << std::setiosflags(std::ios::fixed);
     // std::cout << intgrate::nodes << std::endl;
     // std::cout << intgrate::weights << std::endl;
+}
+int main()
+{
+    std::cout << linear_interpolate<float>::get_coefs<2>({0.5, 0.5}) << std::endl;
+    std::cout << linear_interpolate<float>::get_coefs<2>({0, 0}) << std::endl;
+    std::cout << linear_interpolate<float>::get_coefs<2>({0, 1}) << std::endl;
+    std::cout << linear_interpolate<float>::get_coefs<2>({1, 0}) << std::endl;
+    std::cout << linear_interpolate<float>::get_coefs<2>({1, 1}) << std::endl;
+
+    matrix2x2<float> on_grid_value{
+        0, 1,
+        1, std::sqrt(2)
+    };
+    size_t N = 100;
+    float step = 1.0f/(N -1);
+    std::vector<float> values(N * N);
+    for(size_t y = 0; y < N; y++)
+    for(size_t x = 0; x < N; x++)
+    {
+        auto prod = (on_grid_value * linear_interpolate<float>::get_coefs<2>({x *step, y * step}));
+        values.at(y * N + x) = (prod | vec2<float>{1, 1}) | float(1);
+    }
+    py_engine::init();
+    imshow(values, {N, N});
+    // test();
 }
