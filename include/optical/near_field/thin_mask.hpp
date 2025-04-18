@@ -62,32 +62,18 @@ template<class T, class Image = std::vector<T>> struct thin_mask
             rT sign = rT(-1) * (norm_dir[0] + norm_dir[1]);
             int dirx = 1;
             int diry = 1;
-            // if(norm_dir == point_dbu{0, 1}) diry += 1;
-            // if(norm_dir == point_dbu{1, 0}) dirx += 1;
             dissect_loop<point_dbu::value_type, 2>(edge, step * dissect_coef, 
                 [&](point_dbu current){
                     point_dbu index;
                     index = convert_to<point_dbu>(current / mask_info.spatial.step);
                     if(!full_compare<point_dbu, vec2<size_t>>::less(index, (mask_info.tilesize - point_dbu{dirx, diry}))) return;
-                    auto delta = convert_to<vec2<rT>>(current - index * mask_info.spatial.step);
-                    delta /= step;
-                    vec2<rT> coefx = linear_interpolate<rT>::get_coef(delta[0]);
-                    vec2<rT> coefy = linear_interpolate<rT>::get_coef(delta[1]);
+                    auto delta = convert_to<vec2<rT>>(current - index * mask_info.spatial.step) / step;
                     auto [ix, iy] = index;
-                    // if(norm_dir == point_dbu{0, 1} || norm_dir == point_dbu{1, 0})
-                    {
-                        im.at(iy * mask_info.tilesize[0] + ix)                 += coefx[0] * coefy[0] * dissect_coef * 0.5 * sign;
-                        im.at(iy * mask_info.tilesize[0] + ix + dirx)          += coefx[1] * coefy[0] * dissect_coef * 0.5 * sign;
-                        im.at((iy + diry) * mask_info.tilesize[0] + ix)        += coefx[0] * coefy[1] * dissect_coef * 0.5 * sign;
-                        im.at((iy + diry) * mask_info.tilesize[0] + ix + dirx) += coefx[1] * coefy[1] * dissect_coef * 0.5 * sign;
-                    }
-                    // else{
-                    //     im.at(iy * mask_info.tilesize[0] + ix)           += coefx[1] * coefy[0] * dissect_coef * 0.5 * sign;
-                    //     im.at(iy * mask_info.tilesize[0] + ix + dirx)       += coefx[0] * coefy[0] * dissect_coef * 0.5 * sign;
-                    //     im.at((iy + diry) * mask_info.tilesize[0] + ix)        += coefx[0] * coefy[1] * dissect_coef * 0.5 * sign;
-                    //     im.at((iy + diry) * mask_info.tilesize[0] + ix + dirx) += coefx[1] * coefy[1] * dissect_coef * 0.5 * sign;
-
-                    // }
+                    auto coefs = linear_interpolate<rT>:: template get_coefs<2>(delta) * (dissect_coef * 0.5 * sign);
+                    im.at(iy * mask_info.tilesize[0] + ix)                 += coefs[0][0];
+                    im.at(iy * mask_info.tilesize[0] + ix + dirx)          += coefs[1][0];
+                    im.at((iy + diry) * mask_info.tilesize[0] + ix)        += coefs[0][1];
+                    im.at((iy + diry) * mask_info.tilesize[0] + ix + dirx) += coefs[1][1];
                 }
             );
         };

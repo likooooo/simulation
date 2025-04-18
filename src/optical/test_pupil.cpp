@@ -170,7 +170,7 @@ template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T
                 Hc[0] /= std::sqrt(vector_norm(Hc[0]));
                 Hc[1] /= std::sqrt(vector_norm(Hc[1]));
                 //== 2.1. rotate xyz to sp
-                T theta = std::atan2(fr[0], fr[1]);
+                T theta = r < 1e-6 ? 0 : std::atan2(fr[0], fr[1]);
                 using std::sin, std::cos;
                 const matrix3x3<cT> rotate_to_sp{
                     sin(theta)      , -cos(theta)     , 0,
@@ -178,9 +178,9 @@ template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T
                     fr[1]           , fr[0]           , fzr
                 };
                 assert(1e-6 > std::abs((((matrix3x3<cT>{
-                        fr[0] / r,     -fr[1]/r,       0,
+                        fr[0] / r    , -fr[1]/r     ,  0,
                         fr[1] * fzr/r, fr[0] * fzr/r, -r, 
-                        fr[1],         fr[0],         fzr
+                        fr[1]        , fr[0]        , fzr
                     } - rotate_to_sp) | vec3<cT>{1, 1, 1}) | cT(1)))
                 );
                 const matrix2x3<cT> Tc{
@@ -214,18 +214,17 @@ template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T
     kernels::center_zero_loop_square_r<T, 2>(shape, step, 
         [&](const vec2<T> fyx, T kr_2){
             auto [fy, fx] = fyx;
-            auto [fyR, fxR] = fyx/ vec2<T>{reduction_ratio_y, reduction_ratio_x};
-            T fr = sqrt(fx * fx + fy * fy);
-            T Or = sqrt(fxR * fxR + fyR * fyR);
-            // Calc ObliquityFactor
+            auto [fyR, fxR] = fyx / vec2<T>{reduction_ratio_y, reduction_ratio_x};
+            T fr = std::sqrt(fx * fx + fy * fy);
+            T Or = std::sqrt(fxR * fxR + fyR * fyR);
             cT obliquityFactor = 0;
-            if (fr < nkIn.real() || Or <= nkOut.real()) {
+            if (fr < nkIn.real() && Or <= nkOut.real()) {
                 T cosThetaO = std::sqrt((nkOut.real()) * (nkOut.real()) - Or*Or) / (nkOut.real());
                 T cosThetaI = std::sqrt((nkIn.real()) * (nkIn.real()) - fr*fr) / (nkIn.real());
                 obliquityFactor = std::sqrt(cosThetaO / cosThetaI);
             }
-            // TODO : ndim interpolate
-            // *p = pupil->CubicInterp(fx / xFreqStep / RxIn + NX / 2, fy / yFreqStep / RyIn + NY / 2);
+            vec2<T> pos = convert_to<vec2<T>>(shape) * T(0.5) + fyx / step / vec<T, 2>{reduction_ratio_y, reduction_ratio_x};
+            // *p = cubic_interpolate<T>:: template eval<2>(pos, pupil, shape);
             if(0 != delta_z_imaging){
                 cT phase_imaging_defocus = cT(2_PI_I) * delta_z_imaging / lambda * std::sqrt(nkIn * nkIn - fr * fr);
                 obliquityFactor *= std::exp(phase_imaging_defocus);
@@ -288,17 +287,17 @@ template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(T lambda,
             cT, cT, cT, 
             cT, cT, cT>(pupil_image);
         {
-            TE_y -= std::get<0>(load_image<std::complex<float>>(golden_path[0]));
+            // TE_y -= std::get<0>(load_image<std::complex<float>>(golden_path[0]));
             const auto&[real, imag] = decompose_from<cT, rT, rT>(TE_y);
             imshow(real, convert_to<std::vector<size_t>>(shape));
         }
         {
-            TM_x -= std::get<0>(load_image<std::complex<float>>(golden_path[1]));
+            // TM_x -= std::get<0>(load_image<std::complex<float>>(golden_path[1]));
             const auto&[real, imag] = decompose_from<cT, rT, rT>(TM_x);
             imshow(real, convert_to<std::vector<size_t>>(shape));
         }
         {
-            TM_z -= std::get<0>(load_image<std::complex<float>>(golden_path[2]));
+            // TM_z -= std::get<0>(load_image<std::complex<float>>(golden_path[2]));
             const auto&[real, imag] = decompose_from<cT, rT, rT>(TM_z);
             imshow(real, convert_to<std::vector<size_t>>(shape));
         }
@@ -308,7 +307,7 @@ template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(T lambda,
     //== max error 1e-3
     // pupil_golden_check({"pupil_TE_y.bin", "pupil_TM_x.bin", "pupil_TM_z.bin"});
 
-    apply_anamorphic_effect<rT>(pupil_image, shape, step, 9_PI/180, 45_PI/180, 0, 0, NA, lambda, 1, 1);
+    apply_anamorphic_effect<rT>(pupil_image, shape, step, 9_PI/180, 45_PI/180, 0, 0, NA, lambda, 5, 5);
     //== max error 1e-2
     pupil_golden_check({"pupil_sp_projection_TE_y.bin", "pupil_sp_projection_TM_x.bin", "pupil_sp_projection_TM_z.bin"});
     //==
