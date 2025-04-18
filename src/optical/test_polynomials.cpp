@@ -43,28 +43,43 @@ void test()
     // std::cout << intgrate::nodes << std::endl;
     // std::cout << intgrate::weights << std::endl;
 }
-int main()
+template<class TInterpolate, size_t DIM> void interoplate_test(const matrix<float, DIM, DIM>& on_grid_value)
 {
-    std::cout << linear_interpolate<float>::get_coefs<2>({0.5, 0.5}) << std::endl;
-    std::cout << linear_interpolate<float>::get_coefs<2>({0, 0}) << std::endl;
-    std::cout << linear_interpolate<float>::get_coefs<2>({0, 1}) << std::endl;
-    std::cout << linear_interpolate<float>::get_coefs<2>({1, 0}) << std::endl;
-    std::cout << linear_interpolate<float>::get_coefs<2>({1, 1}) << std::endl;
+    constexpr matrix<float, DIM, DIM> compile_time_coef = TInterpolate:: template get_coefs<2>({0.5, 0.5}); 
+    std::cout << compile_time_coef << std::endl;
+    std::cout << TInterpolate:: template get_coefs<2>({0, 0}) << std::endl;
+    std::cout << TInterpolate:: template get_coefs<2>({0, 1}) << std::endl;
+    std::cout << TInterpolate:: template get_coefs<2>({1, 0}) << std::endl;
+    std::cout << TInterpolate:: template get_coefs<2>({1, 1}) << std::endl;
 
-    matrix2x2<float> on_grid_value{
-        0, 1,
-        1, std::sqrt(2)
-    };
     size_t N = 100;
-    float step = 1.0f/(N -1);
+    float step = float(DIM - 1)/(N -1);
     std::vector<float> values(N * N);
     for(size_t y = 0; y < N; y++)
-    for(size_t x = 0; x < N; x++)
-    {
-        auto prod = (on_grid_value * linear_interpolate<float>::get_coefs<2>({x *step, y * step}));
-        values.at(y * N + x) = (prod | vec2<float>{1, 1}) | float(1);
+    for(size_t x = 0; x < N; x++){
+        values.at(y * N + x) = TInterpolate:: template eval<float, 2>({x *step, y * step}, on_grid_value);
     }
-    py_engine::init();
     imshow(values, {N, N});
-    // test();
+
+}
+int main()
+{
+    py_engine::init();
+    test();
+
+    //== max value should be sqrt(2)
+    interoplate_test<linear_interpolate<float>, 2>({
+        0.0f, 1.0f,
+        1.0f, std::sqrt(2.0f)
+    });
+    auto f_pow3 = [](float x){
+        return std::pow<float>(x, 3);
+    };
+    //== max value should be pow(3 * sqrt(2), 3)
+    interoplate_test<cubic_interpolate<float>, 4>({
+        f_pow3(0), f_pow3(1),                f_pow3(2),                f_pow3(3),
+        f_pow3(1), f_pow3(std::sqrt(1 + 1)), f_pow3(std::sqrt(4 + 1)), f_pow3(std::sqrt(9 + 1)), 
+        f_pow3(2), f_pow3(std::sqrt(1 + 4)), f_pow3(std::sqrt(4 + 4)), f_pow3(std::sqrt(9 + 4)),
+        f_pow3(3), f_pow3(std::sqrt(1 + 9)), f_pow3(std::sqrt(4 + 9)), f_pow3(std::sqrt(9 + 9))
+    });
 }

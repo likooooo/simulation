@@ -5,7 +5,7 @@
 template <class T, size_t N, size_t Order> struct nested_array {using type = vec<typename nested_array<T, N, Order - 1>::type, N>;};
 template <class T, size_t N> struct nested_array<T, N, 1> {using type = vec<T, N>;};
 template <class T, size_t N, size_t Order> using tensor = typename nested_array<T, N, Order>::type;
-template<size_t DIM, size_t I, class TTensor> auto& get(TTensor& t, const vec<size_t, DIM>& indexs) 
+template<size_t DIM, size_t I, class TTensor> constexpr auto& get(TTensor& t, const vec<size_t, DIM>& indexs) 
 {
     if constexpr(I != DIM - 1){
         return get<DIM, I + 1>(t.at(indexs.at(I)), indexs);
@@ -13,47 +13,45 @@ template<size_t DIM, size_t I, class TTensor> auto& get(TTensor& t, const vec<si
         return t.at(indexs.at(I));
     }
 }
-template<class T, size_t Order>
+template<class T_coef, size_t Order>
 struct lagrange_interpolate
 {
     constexpr static size_t N = Order + 1;
     //== dx = pos - std::floor(pos)
-    constexpr static std::array<T, N> get_coef(const T dx)
+    constexpr static std::array<T_coef, N> get_coef(const T_coef dx)
     {
-        std::array<T, N> coefs{0};
+        std::array<T_coef, N> coefs{0};
         for(size_t n = 0; n < N; n++){
             coefs.at(n) = get_Ln_numerator(dx, n) / get_Ln_denominator(n);
         }
         return coefs;
     }
-    template<size_t tensor_order, size_t ...Is> constexpr static tensor<T, N, tensor_order> __get_coefs_impl(const vec<T, tensor_order>& dxyzn, 
+    template<size_t tensor_order, size_t ...Is> constexpr static tensor<T_coef, N, tensor_order> __get_coefs_impl(const vec<T_coef, tensor_order>& dxyzn, 
         std::index_sequence<Is...>)
     {
-        vec<std::array<T, N>, tensor_order> coefs;
+        vec<std::array<T_coef, N>, tensor_order> coefs{0};
         for(size_t i = 0; i < tensor_order; i++) coefs.at(i) = get_coef(dxyzn.at(i));
-        tensor<T, N, tensor_order> t{0};
+        tensor<T_coef, N, tensor_order> t{0};
         vec<size_t, tensor_order> shape{0};
-        shape.fill(N);
-        vec<size_t, tensor_order> step{0};
-        step.fill(1);
+        for(size_t i = 0; i <tensor_order; i++) shape.at(i) = N;
         kernels::kernel_loop<size_t, tensor_order>(shape, [&](const vec<size_t, tensor_order>& unused_center, const vec<size_t, tensor_order>& indices){
-            T& n = get<tensor_order, 0>(t, indices);
-            T prod = 1;
+            T_coef& n = get<tensor_order, 0>(t, indices);
+            T_coef prod = 1;
             for(size_t i = 0; i < tensor_order; i++) prod *= coefs.at(i).at(indices.at(i));
             n = prod;
         }); 
         return t;
     }
-    template<size_t tensor_order> constexpr static tensor<T, N, tensor_order> get_coefs(const vec<T, tensor_order>& dxyzn)
+    template<size_t tensor_order> constexpr static tensor<T_coef, N, tensor_order> get_coefs(const vec<T_coef, tensor_order>& dxyzn)
     {
         return __get_coefs_impl(dxyzn, std::make_index_sequence<tensor_order>{});
     }
-    constexpr static std::pair<size_t, std::array<T, N>> interpolate_info(const T x, const size_t unit_count){
+    constexpr static std::pair<size_t, std::array<T_coef, N>> interpolate_info(const T_coef x, const size_t unit_count){
         size_t index = std::floor(x);
         index = std::min(index, unit_count -1 - Order);
         return std::make_pair(index, get_coef(x - index));
     } 
-    template<class TContainer>constexpr static typename TContainer::value_type eval(const T x, const TContainer& vec){
+    template<class TContainer>constexpr static typename TContainer::value_type eval(const T_coef x, const TContainer& vec){
         auto [index, info] = interpolate_info(x, vec.size());
         typename TContainer::value_type result{0};
         for(size_t i = 0; i < N; i++){
@@ -61,27 +59,40 @@ struct lagrange_interpolate
         }
         return result;
     } 
-private:
-    constexpr static std::array<T, N> get_xn(T dx)
+    template<class TPixel, size_t tensor_order> constexpr static TPixel eval(const vec<TPixel, tensor_order>& dxyzn, const  tensor<TPixel, N, tensor_order>& on_grid_value)
     {
-        std::array<T, N> xn{0};
+        auto prod = (on_grid_value * get_coefs<tensor_order>(dxyzn));
+        vec<size_t, tensor_order> shape{0};
+        for(size_t i = 0; i <tensor_order; i++) shape.at(i) = N;
+        TPixel sum{0};
+        kernels::kernel_loop<size_t, tensor_order>(shape, 
+            [&](const vec<size_t, tensor_order>& unused_center, const vec<size_t, tensor_order>& indices){
+                sum += get<tensor_order, 0>(prod, indices);
+            }
+        ); 
+        return sum;
+    }
+private:
+    constexpr static std::array<T_coef, N> get_xn(T_coef dx)
+    {
+        std::array<T_coef, N> xn{0};
         for(size_t i = 0; i < xn.size(); i++) xn.at(i) = dx - i;
         return xn;
     }
-    constexpr static T get_Ln_denominator(const size_t n)
+    constexpr static T_coef get_Ln_denominator(const size_t n)
     {
-        const std::array<T,N> xn = get_xn(n);
-        T Ln = 1;
+        const std::array<T_coef,N> xn = get_xn(n);
+        T_coef Ln = 1;
         for(size_t i = 0; i < N; i++){
 	        if(n == i) continue;
             Ln *= xn.at(i);
         }
 	    return Ln;
     }
-    constexpr static T get_Ln_numerator(const T dx, const size_t n)
+    constexpr static T_coef get_Ln_numerator(const T_coef dx, const size_t n)
     {
-        const std::array<T, N> xn = get_xn(dx);
-        T Ln = 1;
+        const std::array<T_coef, N> xn = get_xn(dx);
+        T_coef Ln = 1;
         for(size_t i = 0; i < N; i++){
 	        if(n == i) continue;
             Ln *= xn.at(i);
