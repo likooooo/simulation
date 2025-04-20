@@ -209,22 +209,22 @@ template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T
     );
 
     //== apply obliquity factor & imaging-defocus to pupil
-    auto pupil_final = pupil;
+    std::vector<matrix2x3<cT>> pupil_final(pupil.size());
     p = pupil_final.data();
+
     kernels::center_zero_loop_square_r<T, 2>(shape, step, 
         [&](const vec2<T> fyx, T kr_2){
-            auto [fy, fx] = fyx;
             auto [fyR, fxR] = fyx / vec2<T>{reduction_ratio_y, reduction_ratio_x};
-            T fr = std::sqrt(fx * fx + fy * fy);
-            T Or = std::sqrt(fxR * fxR + fyR * fyR);
+            T fr = std::sqrt(kr_2);
+            T Or = std::hypot(fxR, fyR);
             cT obliquityFactor = 0;
             if (fr < nkIn.real() && Or <= nkOut.real()) {
                 T cosThetaO = std::sqrt((nkOut.real()) * (nkOut.real()) - Or*Or) / (nkOut.real());
                 T cosThetaI = std::sqrt((nkIn.real()) * (nkIn.real()) - fr*fr) / (nkIn.real());
                 obliquityFactor = std::sqrt(cosThetaO / cosThetaI);
+                vec2<T> pos = convert_to<vec2<T>>(shape) * T(0.5) + (fyx / step / vec<T, 2>{reduction_ratio_y, reduction_ratio_x});
+                *p = cubic_interpolate<T>:: template eval<2>(pos, pupil, shape);
             }
-            vec2<T> pos = convert_to<vec2<T>>(shape) * T(0.5) + fyx / step / vec<T, 2>{reduction_ratio_y, reduction_ratio_x};
-            // *p = cubic_interpolate<T>:: template eval<2>(pos, pupil, shape);
             if(0 != delta_z_imaging){
                 cT phase_imaging_defocus = cT(2_PI_I) * delta_z_imaging / lambda * std::sqrt(nkIn * nkIn - fr * fr);
                 obliquityFactor *= std::exp(phase_imaging_defocus);

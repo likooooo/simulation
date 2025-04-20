@@ -65,21 +65,50 @@ template<class TInterpolate, size_t DIM> void interoplate_test(const matrix<floa
 int main()
 {
     py_engine::init();
-    test();
+    // test();
 
-    //== max value should be sqrt(2)
-    interoplate_test<linear_interpolate<float>, 2>({
-        0.0f, 1.0f,
-        1.0f, std::sqrt(2.0f)
-    });
+    // //== max value should be sqrt(2)
+    // interoplate_test<linear_interpolate<float>, 2>({
+    //     0.0f, 1.0f,
+    //     1.0f, std::sqrt(2.0f)
+    // });
     auto f_pow3 = [](float x){
         return std::pow<float>(x, 3);
     };
-    //== max value should be pow(3 * sqrt(2), 3)
-    interoplate_test<cubic_interpolate<float>, 4>({
-        f_pow3(0), f_pow3(1),                f_pow3(2),                f_pow3(3),
-        f_pow3(1), f_pow3(std::sqrt(1 + 1)), f_pow3(std::sqrt(4 + 1)), f_pow3(std::sqrt(9 + 1)), 
-        f_pow3(2), f_pow3(std::sqrt(1 + 4)), f_pow3(std::sqrt(4 + 4)), f_pow3(std::sqrt(9 + 4)),
-        f_pow3(3), f_pow3(std::sqrt(1 + 9)), f_pow3(std::sqrt(4 + 9)), f_pow3(std::sqrt(9 + 9))
-    });
+    // //== max value should be pow(3 * sqrt(2), 3)
+    // interoplate_test<cubic_interpolate<float>, 4>({
+    //     f_pow3(0), f_pow3(1),                f_pow3(2),                f_pow3(3),
+    //     f_pow3(1), f_pow3(std::sqrt(1 + 1)), f_pow3(std::sqrt(4 + 1)), f_pow3(std::sqrt(9 + 1)), 
+    //     f_pow3(2), f_pow3(std::sqrt(1 + 4)), f_pow3(std::sqrt(4 + 4)), f_pow3(std::sqrt(9 + 4)),
+    //     f_pow3(3), f_pow3(std::sqrt(1 + 9)), f_pow3(std::sqrt(4 + 9)), f_pow3(std::sqrt(9 + 9))
+    // });
+
+    size_t N = 100;
+    auto cal_grid = [](size_t N, float step){
+        std::vector<float> on_grid(N * N);
+        for(size_t y = 0; y < N; y++)
+        for(size_t x = 0; x < N; x++)
+            on_grid.at(y * N + x) = std::pow(std::hypot<float, float>(float(x) - N/2, float(y) - N/2) * step, 3);
+        return on_grid;
+    };
+    auto on_grid = cal_grid(N, 1.0f/(N - 1));
+    const size_t scalar = 3;
+    // imshow(cal_grid(N, 1.0f/(N - 1)), {N, N});
+    N *= scalar;
+    auto golden = cal_grid(N, 1.0f/(N - 1));
+    // imshow(golden, {N, N});
+    
+    std::vector<float> test(N*N);
+    float step = float(N / scalar - 1) / (N - 1);
+    for(size_t y = 0; y < N; y++)
+    for(size_t x = 0; x < N; x++)
+        test.at(y * N + x) =  cubic_interpolate<float>:: template eval<2>(vec2<float>{float(y), float(x)} * step, on_grid, {N / scalar, N/ scalar});
+    auto error = golden - test;
+    float rms = 0;
+    for(auto& r : error) {
+        r = std::abs(r);
+        rms += r * r;
+    }
+    std::cout << "RMS=" << std::sqrt(rms /= error.size()) << std::endl;
+    imshow(error, {N, N});
 }

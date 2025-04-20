@@ -81,17 +81,19 @@ struct lagrange_interpolate
     {
         using TPixel = typename TContainer::value_type;
         static_assert(tensor_order >= 2);
-        const vec<size_t, tensor_order> start_zyx_index = [&]<size_t ...Is>(std::index_sequence<Is...>)
+        const vec<size_t, tensor_order> start_zyx_index = [&]()
         {
-            return vec<size_t, tensor_order>{
-                ((interpolate_start_index(nzyx.at(Is), shape.at(Is))), ...)
-            };
-        }(std::make_index_sequence<tensor_order>{});
-        const auto dxyzn = [&]<size_t ...Is>(std::index_sequence<Is...>){
-            return vec<T_coef, tensor_order>{
-                ((nzyx.at(tensor_order - 1 - Is) - start_zyx_index.at(tensor_order - 1 - Is)), ...)
-            };
-        }(std::make_index_sequence<tensor_order>{});
+            vec<size_t, tensor_order> result;
+            for(size_t i = 0; i < tensor_order; i++)
+                result.at(i) = interpolate_start_index(nzyx.at(i), shape.at(i));
+            return result;
+        }();
+        const auto dxyzn = [&](){
+            vec<T_coef, tensor_order> result;
+            for(size_t i = 0; i < tensor_order; i++)
+                result.at(i) = nzyx.at(tensor_order - 1 - i) - start_zyx_index.at(tensor_order - 1 - i);
+            return result;
+        }();
         const auto strides = [&]()
         {
             vec<size_t, tensor_order> s{};
@@ -100,18 +102,19 @@ struct lagrange_interpolate
                 s.at(i) = s.at(i + 1) * shape.at(i + 1);
             return s;
         }();
-        const auto tensor_shape = [&]<size_t ...Is>(std::index_sequence<Is...>){
+        const auto tensor_shape = [&](){
             vec<size_t, tensor_order> s{};
             s.fill(N);
             return s;
-        }(std::make_index_sequence<tensor_order>{});
+        }();
 
         tensor<TPixel, N, tensor_order> on_grid_value;
         kernels::kernel_loop<size_t, tensor_order>(tensor_shape, 
             [&](const vec<size_t, tensor_order>& unused_center, const vec<size_t, tensor_order>& indices){
                 size_t image_index = 0;
+                auto pos = start_zyx_index + indices;
                 for(size_t i = 0; i < indices.size(); i++)
-                    image_index += indices.at(i) * strides.at(i);
+                    image_index += (pos.at(i) * strides.at(i));
                 get<tensor_order, 0>(on_grid_value, indices) = image.at(image_index);
             }
         ); 
