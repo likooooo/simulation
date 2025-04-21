@@ -210,12 +210,13 @@ template<class T> void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T
 
     //== apply obliquity factor & imaging-defocus to pupil
     std::vector<matrix2x3<cT>> pupil_final(pupil.size());
+    // auto pupil_final = pupil;
     p = pupil_final.data();
 
     kernels::center_zero_loop_square_r<T, 2>(shape, step, 
         [&](const vec2<T> fyx, T kr_2){
-            auto [fyR, fxR] = fyx / vec2<T>{reduction_ratio_y, reduction_ratio_x};
             T fr = std::sqrt(kr_2);
+            auto [fyR, fxR] = fyx / vec2<T>{reduction_ratio_y, reduction_ratio_x};
             T Or = std::hypot(fxR, fyR);
             cT obliquityFactor = 0;
             if (fr < nkIn.real() && Or <= nkOut.real()) {
@@ -266,8 +267,6 @@ template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(T lambda,
         // std::tuple<size_t, size_t, cT>(2, 0, cT(2_PI, 0))
         std::tuple<size_t, size_t, cT>(0, 0, cT(0)) 
     });
-    // imshow(reinterpret_cast<std::vector<T>&>(pupil_radials), {12, pupil_radials.size()});
-
     const T* pZernike = zernike_image.data();
     std::vector<matrix2x3<cT>> pupil_image(zernike_image.size());
     matrix2x3<cT>* p = pupil_image.data();
@@ -287,36 +286,34 @@ template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(T lambda,
             cT, cT, cT, 
             cT, cT, cT>(pupil_image);
         {
-            // TE_y -= std::get<0>(load_image<std::complex<float>>(golden_path[0]));
+            TE_y -= std::get<0>(load_image<std::complex<float>>(golden_path[0]));
             const auto&[real, imag] = decompose_from<cT, rT, rT>(TE_y);
             imshow(real, convert_to<std::vector<size_t>>(shape));
         }
         {
-            // TM_x -= std::get<0>(load_image<std::complex<float>>(golden_path[1]));
+            TM_x -= std::get<0>(load_image<std::complex<float>>(golden_path[1]));
             const auto&[real, imag] = decompose_from<cT, rT, rT>(TM_x);
             imshow(real, convert_to<std::vector<size_t>>(shape));
         }
         {
-            // TM_z -= std::get<0>(load_image<std::complex<float>>(golden_path[2]));
+            TM_z -= std::get<0>(load_image<std::complex<float>>(golden_path[2]));
             const auto&[real, imag] = decompose_from<cT, rT, rT>(TM_z);
             imshow(real, convert_to<std::vector<size_t>>(shape));
         }
     };
-    //== max error 1e-2
+    //== pupil with zernike ON
     // pupil_golden_check({"pupil_zernike_TE_y.bin", "pupil_zernike_TM_x.bin", "pupil_zernike_TM_z.bin"});
-    //== max error 1e-3
+    
+    //== pupil with zernike OFF
     // pupil_golden_check({"pupil_TE_y.bin", "pupil_TM_x.bin", "pupil_TM_z.bin"});
-
-    apply_anamorphic_effect<rT>(pupil_image, shape, step, 9_PI/180, 45_PI/180, 0, 0, NA, lambda, 5, 5);
-    //== max error 1e-2
-    pupil_golden_check({"pupil_sp_projection_TE_y.bin", "pupil_sp_projection_TM_x.bin", "pupil_sp_projection_TM_z.bin"});
-    //==
+    
+    apply_anamorphic_effect<rT>(pupil_image, shape, step, 9_PI/180, 45_PI/180, 0, 0, NA, lambda, 1, 1, 5, 5);
+    
+    //== pupil with zernike OFF, projection ON
+    // pupil_golden_check({"pupil_sp_projection_TE_y.bin", "pupil_sp_projection_TM_x.bin", "pupil_sp_projection_TM_z.bin"});
+    
+    //== pupil with obliquity factor
     // pupil_golden_check({"pupil_final_TE_y.bin", "pupil_final_TM_x.bin", "pupil_final_TM_z.bin"});
-
-
-    // system("scp like@workstation-guibohan:/home/like/YuWei/LibraBfiLitho/debugLithoEUV/src/examples/fdtd/demo1/output/Intermediate/x29y9p0[]/GetAnamorphicPupil:3177_rank-1_*_x3202_y3202.exact ./");
-    // vec3<std::string> golden_path {"GetAnamorphicPupil:3177_rank-1_0_x3202_y3202.exact", "GetAnamorphicPupil:3177_rank-1_1_x3202_y3202.exact", "GetAnamorphicPupil:3177_rank-1_2_x3202_y3202.exact"};
-    // pupil_golden_check(golden_path);
     return pupil_image;
 }
 
