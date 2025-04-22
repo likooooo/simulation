@@ -109,7 +109,7 @@ template<class T, size_t M = 4> struct zernike_radial_table
         return combination_M0;
     }
    
-    std::vector<rT> gen_aberration_pupil_image(const vec2<size_t>& shape, const vec2<rT>& step /* NA / (shape -1) */, rT cutoff_freq, const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs) const
+    std::vector<rT> gen_pupil_image_with_zernike(const vec2<size_t>& shape, const vec2<rT>& step /* NA / (shape -1) */, rT cutoff_freq, const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs) const
     {
         std::vector<rT> pupil_image(shape[0] * shape[1], 0);
         for(const auto [m, l, coef] : poly_coefs){

@@ -2,6 +2,8 @@
 #include "film_stack_solver.hpp"
 #include "jones_pupil.hpp"
 #include "zernike.hpp"
+#include <py_helper.hpp>
+#include <optical/optical_numerics.hpp>
 
 template<class T> struct pupil_radial
 {
@@ -79,5 +81,189 @@ public:
     }
 };
 
-// freq-shift
-//
+template<class T> inline T get_pupil_na(T NA)
+{
+    //== 高 NA 系统, 需要考虑 richards-wolf 矢量衍射理论
+    //   NA < 0.4 时，s/p偏振差异 <1% (信息来源 deepseek)
+    return T(0.4) <= NA ? T(1) : NA;
+}
+
+template<class T> inline void apply_anamorphic_effect(std::vector<matrix2x3<complex_t<T>>>& pupil, vec2<size_t> shape, vec2<T> step,
+    T crao, T azimuth,
+    T delta_z_mask, T delta_z_imaging,
+    T NA, T lambda, complex_t<T> nkIn, complex_t<T> nkOut, T reduction_ratio_x = 1, T reduction_ratio_y = 1)
+{
+    using cT = complex_t<T>;
+    const vec2<T> shift{std::sin(crao) * std::sin(azimuth), std::sin(crao) * std::cos(azimuth)};
+    const T pupil_na = get_pupil_na(NA);
+    // TODO : pupil shift
+    error_unclassified::out("TODO : pupil shift in apply_anamorphic_effect");
+    //== apply object-defocus & shift & polarization to pupil
+    matrix2x3<cT>* p = pupil.data();
+    kernels::center_zero_loop_square_r<T, 2>(shape, step, 
+        [&](const vec2<T> fyx, T kr_2){
+            const vec2<T> fr = (fyx + shift); 
+            T r = std::sqrt(vector_norm(fr));
+            if(r <= pupil_na){
+                //== 1. apply object-defocus to pupil
+                if(0 != delta_z_mask){
+                    cT phase_object_defocus = cT(2_PI_I) * delta_z_mask/ lambda * std::sqrt(nkOut * nkOut - r * r);
+                    (*p) *= std::exp(phase_object_defocus);
+                } 
+                T fzr = std::sqrt(T(1) - vector_norm(fr));
+                matrix2x3<cT> Hc{
+                    fzr, 0, -fr[1],
+                    0, fzr, -fr[0],
+                };
+                assert(is_almost_equal<T>(std::abs((Hc[0] * vec3<cT>{fr[1], fr[0], fzr}) | cT(1)), 0));
+                assert(is_almost_equal<T>(std::abs((Hc[1] * vec3<cT>{fr[1], fr[0], fzr}) | cT(1)), 0));
+                Hc[0] /= std::sqrt(vector_norm(Hc[0]));
+                Hc[1] /= std::sqrt(vector_norm(Hc[1]));
+                //== 2.1. rotate xyz to sp
+                T theta = r < 1e-6 ? 0 : std::atan2(fr[0], fr[1]);
+                using std::sin, std::cos;
+                const matrix3x3<cT> rotate_to_sp{
+                    sin(theta)      , -cos(theta)     , 0,
+                    cos(theta) * fzr, sin(theta) * fzr, -r,
+                    fr[1]           , fr[0]           , fzr
+                };
+                assert(1e-6 > std::abs((((matrix3x3<cT>{
+                        fr[0] / r    , -fr[1]/r     ,  0,
+                        fr[1] * fzr/r, fr[0] * fzr/r, -r, 
+                        fr[1]        , fr[0]        , fzr
+                    } - rotate_to_sp) | vec3<cT>{1, 1, 1}) | cT(1)))
+                );
+                const matrix2x3<cT> Tc{
+                    rotate_to_sp | Hc[0],
+                    rotate_to_sp | Hc[1]
+                };
+                //== 2.2. projection polarization to sp cood
+                const matrix3x3<cT> Mr{
+                    p->at(0)[0], p->at(1)[0], r,
+                    p->at(0)[1], p->at(1)[1], 0,
+                    p->at(0)[2], p->at(1)[2], fzr
+                };
+                Hc[0] = Mr | Tc[0];
+                Hc[1] = Mr | Tc[1];
+                //== 2.3. rotate sp to xyz
+                const matrix3x3<cT> rorate_to_xyz{
+                    cos(theta) , sin(theta), 0,
+                    -sin(theta), cos(theta), 0,
+                    0          , 0         , 1
+                };
+                p->at(0) = rorate_to_xyz | Hc[0];
+                p->at(1) = rorate_to_xyz | Hc[1];
+            }
+            p++;
+        }
+    );
+
+    //== apply obliquity factor & imaging-defocus to pupil
+    std::vector<matrix2x3<cT>> pupil_final(pupil.size());
+    p = pupil_final.data();
+    kernels::center_zero_loop_square_r<T, 2>(shape, step, 
+        [&](const vec2<T> fyx, T kr_2){
+            T fr = std::sqrt(kr_2);
+            auto [fyR, fxR] = fyx / vec2<T>{reduction_ratio_y, reduction_ratio_x};
+            T Or = std::hypot(fxR, fyR);
+            cT obliquityFactor = 0;
+            if (fr < nkIn.real() && Or <= nkOut.real()) {
+                T cosThetaO = std::sqrt((nkOut.real()) * (nkOut.real()) - Or*Or) / (nkOut.real());
+                T cosThetaI = std::sqrt((nkIn.real()) * (nkIn.real()) - fr*fr) / (nkIn.real());
+                obliquityFactor = std::sqrt(cosThetaO / cosThetaI);
+                vec2<T> pos = convert_to<vec2<T>>(shape) * T(0.5) + (fyx / step / vec<T, 2>{reduction_ratio_y, reduction_ratio_x});
+                *p = cubic_interpolate<T>:: template eval<2>(pos, pupil, shape);
+            }
+            if(0 != delta_z_imaging){
+                cT phase_imaging_defocus = cT(2_PI_I) * delta_z_imaging / lambda * std::sqrt(nkIn * nkIn - fr * fr);
+                obliquityFactor *= std::exp(phase_imaging_defocus);
+            } 
+           *p *= obliquityFactor;
+           p++;
+        }
+    );
+    pupil.swap(pupil_final);
+}
+
+template<class rT> inline void pupil_golden_check(const std::vector<matrix2x3<complex_t<rT>>>& pupil_image, vec2<size_t> shape, const vec3<std::string>& golden_path = {})
+{
+    using cT = complex_t<rT>;
+    auto[TE_x, TE_y, TE_z, TM_x, TM_y, TM_z] = decompose_from<matrix2x3<cT>, 
+        cT, cT, cT, 
+        cT, cT, cT>(pupil_image);
+    {
+        if(!golden_path[0].empty()) TE_y -= std::get<0>(load_image<std::complex<float>>(golden_path[0]));
+        const auto&[real, imag] = decompose_from<cT, rT, rT>(TE_y);
+        imshow(real, convert_to<std::vector<size_t>>(shape));
+    }
+    {
+        if(!golden_path[1].empty()) TM_x -= std::get<0>(load_image<std::complex<float>>(golden_path[1]));
+        const auto&[real, imag] = decompose_from<cT, rT, rT>(TM_x);
+        imshow(real, convert_to<std::vector<size_t>>(shape));
+    }
+    {
+        if(!golden_path[2].empty()) TM_z -= std::get<0>(load_image<std::complex<float>>(golden_path[2]));
+        const auto&[real, imag] = decompose_from<cT, rT, rT>(TM_z);
+        imshow(real, convert_to<std::vector<size_t>>(shape));
+    }
+};
+
+template<class T> struct pupil
+{
+    using zk_table = zernike_radial_table<T, 10>;
+    using rT = real_t<T>;
+    using cT = complex_t<T>;
+    const size_t mode{0};
+    union{
+        std::vector<matrix2x3<cT>> vector_pupil;
+        std::vector<cT> scalar_pupil;
+    };
+    //== [-2NA, 2NA]
+    vec2<size_t> shape;
+    vec2<rT> step;
+    rT acutal_na;
+    rT pupil_na;
+
+    pupil(rT acutal_na, rT freq_step, const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs, size_t m = 0) 
+        : mode(m), shape({}), step({freq_step, freq_step}), acutal_na(acutal_na), pupil_na(get_pupil_na(acutal_na))
+    {
+        const size_t N = 2 * (std::ceil(2*acutal_na/freq_step) + 1);
+        shape = {N, N};
+        if(0 == mode) vector_pupil = init_vector_pupil_image();
+        else scalar_pupil = init_scalar_pupil_image();
+    }
+    ~pupil(){
+        // if(0 == mode) vector_pupil = std::vector<matrix2x3<cT>>();
+        // if(1 == mode) scalar_pupil = std::vector<cT>();
+    }
+    std::vector<matrix2x3<cT>> init_vector_pupil_image(const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs= {
+        std::tuple<size_t, size_t, cT>(0, 0, cT(1)) 
+    }) const {
+        const std::vector<T> zernike_image = zk_table(shape[0]).gen_pupil_image_with_zernike(shape, step, pupil_na, poly_coefs);
+        const T* pZernike = zernike_image.data();
+        // imshow(zernike_image, convert_to<std::vector<size_t>>(shape));
+        std::vector<matrix2x3<cT>> pupil_image(zernike_image.size());
+        matrix2x3<cT>* p = pupil_image.data();
+
+        std::vector<matrix2x3<cT>> pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(shape[0], pupil_na, cT(1));
+        kernels::center_zero_loop_square_r<rT, 2>(shape, step, [&](const vec2<rT>& fxy, rT r){
+            r = std::sqrt(r);
+            matrix2x3<cT> val{0};
+            if(r <= pupil_na) {
+                r /= pupil_na;
+                val = cubic_interpolate<rT>::eval(r * pupil_radials.size(), pupil_radials);
+                val *= std::exp(cT(0, *pZernike));
+            } 
+            *p = val;
+            pZernike++;
+            p++;
+        });
+        return pupil_image;
+    }
+    std::vector<cT> init_scalar_pupil_image(const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs= {
+        std::tuple<size_t, size_t, cT>(0, 0, cT(1)) 
+    }) const {
+        auto real_part = zk_table(shape[0]).gen_pupil_image_with_zernike(shape, step, pupil_na, poly_coefs);
+        return convert_to<std::vector<cT>>(real_part);   
+    }
+};

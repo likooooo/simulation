@@ -54,7 +54,7 @@ void display_aberration_pupil_image(int m, int l)
     float freq = 1;
     float dz = 0.1;
     cT norm = cT(2_PI * dz * freq);
-    auto im = zernike.gen_aberration_pupil_image({size, size}, {step, step}, 1, {
+    auto im = zernike.gen_pupil_image_with_zernike({size, size}, {step, step}, 1, {
         // std::tuple<size_t, size_t, cT>(m, l, cT(1, 1))
         // std::tuple<size_t, size_t, cT>(0, 0, norm),
         std::tuple<size_t, size_t, cT>(0, 2, norm / (-2.0f)),
