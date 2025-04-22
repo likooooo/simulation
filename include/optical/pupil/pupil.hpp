@@ -31,6 +31,8 @@ public:
                 0, 1, 0, 
                 //== TM
                 std::sqrt(n * n - kr * kr) / n , 0, -kr/n 
+                //==
+                // kr/n, 0, std::sqrt(n * n - kr * kr) / n
             };
         });
         return pupil;
@@ -207,50 +209,60 @@ template<class rT> inline void pupil_golden_check(const std::vector<matrix2x3<co
         imshow(real, convert_to<std::vector<size_t>>(shape));
     }
 };
-
-template<class T> struct pupil
+template<class T> struct pupil_base
 {
-    using zk_table = zernike_radial_table<T, 10>;
     using rT = real_t<T>;
     using cT = complex_t<T>;
-    const size_t mode{0};
-    union{
-        std::vector<matrix2x3<cT>> vector_pupil;
-        std::vector<cT> scalar_pupil;
-    };
     //== [-2NA, 2NA]
     vec2<size_t> shape;
     vec2<rT> step;
-    rT acutal_na;
+    rT actual_na;
     rT pupil_na;
 
-    pupil(rT acutal_na, rT freq_step, const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs, size_t m = 0) 
-        : mode(m), shape({}), step({freq_step, freq_step}), acutal_na(acutal_na), pupil_na(get_pupil_na(acutal_na))
+    pupil_base(rT actual_na, rT freq_step) 
+        : shape({}), step({freq_step, freq_step}), actual_na(actual_na), pupil_na(get_pupil_na(actual_na))
     {
-        const size_t N = 2 * (std::ceil(2*acutal_na/freq_step) + 1);
+        const size_t N = 2 * (std::ceil(2*actual_na/freq_step) + 1);
         shape = {N, N};
-        if(0 == mode) vector_pupil = init_vector_pupil_image();
-        else scalar_pupil = init_scalar_pupil_image();
     }
-    ~pupil(){
-        // if(0 == mode) vector_pupil = std::vector<matrix2x3<cT>>();
-        // if(1 == mode) scalar_pupil = std::vector<cT>();
+};
+
+template<class T> struct scalar_pupil : pupil_base<T>
+{
+    using rT = real_t<T>;
+    using cT = complex_t<T>;
+    using zk_table = zernike_radial_table<T, 10>;
+    std::vector<cT> pupil_image;
+    scalar_pupil(rT actual_na, rT freq_step, 
+        const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs = {std::tuple<size_t, size_t, cT>(0, 0, cT(1))}) 
+        : pupil_base<T>(actual_na, freq_step)
+    {
+        pupil_image = zk_table(this->shape[0]).gen_pupil_image_with_zernike(this->shape, this->step, this->pupil_na, poly_coefs);
     }
-    std::vector<matrix2x3<cT>> init_vector_pupil_image(const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs= {
-        std::tuple<size_t, size_t, cT>(0, 0, cT(1)) 
-    }) const {
-        const std::vector<T> zernike_image = zk_table(shape[0]).gen_pupil_image_with_zernike(shape, step, pupil_na, poly_coefs);
+};
+template<class T> struct vector_pupil : public pupil_base<T>
+{
+    using rT = real_t<T>;
+    using cT = complex_t<T>;
+    using zk_table = zernike_radial_table<T, 10>;
+    std::vector<matrix2x3<cT>> pupil_image;
+    vector_pupil(rT actual_na, rT freq_step, 
+        const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs = {std::tuple<size_t, size_t, cT>(0, 0, cT(1))}) 
+        : pupil_base<T>(actual_na, freq_step)
+    {
+        const std::vector<T> zernike_image = zk_table(this->shape[0]).gen_pupil_image_with_zernike(
+            this->shape, this->step, this->pupil_na, poly_coefs);
         const T* pZernike = zernike_image.data();
         // imshow(zernike_image, convert_to<std::vector<size_t>>(shape));
-        std::vector<matrix2x3<cT>> pupil_image(zernike_image.size());
+        pupil_image.resize(zernike_image.size());
         matrix2x3<cT>* p = pupil_image.data();
-
-        std::vector<matrix2x3<cT>> pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(shape[0], pupil_na, cT(1));
-        kernels::center_zero_loop_square_r<rT, 2>(shape, step, [&](const vec2<rT>& fxy, rT r){
+    
+        std::vector<matrix2x3<cT>> pupil_radials = pupil_radial<T>::init_anamorphic_pupil_radial(this->shape[0], this->pupil_na, cT(1));
+        kernels::center_zero_loop_square_r<rT, 2>(this->shape, this->step, [&](const vec2<rT>& fxy, rT r){
             r = std::sqrt(r);
             matrix2x3<cT> val{0};
-            if(r <= pupil_na) {
-                r /= pupil_na;
+            if(r <= this->pupil_na) {
+                r /= this->pupil_na;
                 val = cubic_interpolate<rT>::eval(r * pupil_radials.size(), pupil_radials);
                 val *= std::exp(cT(0, *pZernike));
             } 
@@ -258,12 +270,12 @@ template<class T> struct pupil
             pZernike++;
             p++;
         });
-        return pupil_image;
-    }
-    std::vector<cT> init_scalar_pupil_image(const std::vector<std::tuple<size_t, size_t, cT>>& poly_coefs= {
-        std::tuple<size_t, size_t, cT>(0, 0, cT(1)) 
-    }) const {
-        auto real_part = zk_table(shape[0]).gen_pupil_image_with_zernike(shape, step, pupil_na, poly_coefs);
-        return convert_to<std::vector<cT>>(real_part);   
     }
 };
+
+
+
+
+
+
+

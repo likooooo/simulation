@@ -189,8 +189,8 @@ template<class T> std::vector<matrix2x3<complex_t<T>>> gen_pupil_array(T lambda,
         pZernike++;
         p++;
     });
-    // pupil<T> p(NA, freq_step, poly_coefs);
-    // auto pupil_image = p.vector_pupil;
+    vector_pupil<T> pp(NA, freq_step, poly_coefs);
+    pupil_image = pp.pupil_image;
     //== pupil with zernike ON
     // pupil_golden_check<rT>(pupil_image, shape, {"pupil_zernike_TE_y.bin", "pupil_zernike_TM_x.bin", "pupil_zernike_TM_z.bin"});
     
