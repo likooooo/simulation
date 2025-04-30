@@ -97,3 +97,31 @@ template<class T> constexpr static inline std::tuple<bool, complex_t<T>> is_tota
 	complex_t<T> critical_angle = std::asin(std::sin(0.5_PI) * n2/n1);
 	return {true, critical_angle};
 }
+
+//== https://en.wikipedia.org/wiki/Fresnel_number#Application
+template<class T> inline T fresnel_number(T aperture_length, T distance_from_aperture_to_monitor, T lambda){
+    return (aperture_length * aperture_length) / (distance_from_aperture_to_monitor * lambda);
+} 
+template<class T> inline size_t which_diffraction_theory_work (T aperture_length, T distance_from_aperture_to_monitor, T lambda)
+{
+    T fresnel_n = fresnel_number(aperture_length, distance_from_aperture_to_monitor, lambda);
+    size_t i = 0;
+    vec3<T> limits{T(0.1), T(10), T(1e6)};
+    for(; i < 3; i++) limts.at(i) {
+        if(limits.at(i) > fresnel_n) break;
+    }
+    // 0 : [0, 0.1)   fraunhofer diffraction 
+    // 1 : [0.1, 10)  fresnel diffraction
+    // 2 : [10, +inf) rayleigh-sommerfield diffraction
+    return i;
+}
+template<class T> inline T max_dz_of_angular_spectrum(T lambda, T spectrum_step)
+{
+    //== 借助 layleigh-length, 此处是我的猜想
+    return T(1_PI) * step * step / lambda;
+}
+//== TODO : fresnel diffraction  
+//    https://en.wikipedia.org/wiki/Fresnel_diffraction
+
+//== TODO : fraunhofer diffraction 
+//    https://en.wikipedia.org/wiki/Fraunhofer_diffraction
