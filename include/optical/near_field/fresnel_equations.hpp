@@ -107,7 +107,7 @@ template<class T> inline size_t which_diffraction_theory_work (T aperture_length
     T fresnel_n = fresnel_number(aperture_length, distance_from_aperture_to_monitor, lambda);
     size_t i = 0;
     vec3<T> limits{T(0.1), T(10), T(1e6)};
-    for(; i < 3; i++) limts.at(i) {
+    for(; i < 3; i++){
         if(limits.at(i) > fresnel_n) break;
     }
     // 0 : [0, 0.1)   fraunhofer diffraction 
@@ -118,7 +118,7 @@ template<class T> inline size_t which_diffraction_theory_work (T aperture_length
 template<class T> inline T max_dz_of_angular_spectrum(T lambda, T spectrum_step)
 {
     //== 借助 layleigh-length, 此处是我的猜想
-    return T(1_PI) * step * step / lambda;
+    return T(1_PI) * spectrum_step * spectrum_step / lambda;
 }
 //== TODO : fresnel diffraction  
 //    https://en.wikipedia.org/wiki/Fresnel_diffraction
