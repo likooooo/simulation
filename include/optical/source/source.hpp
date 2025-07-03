@@ -2,6 +2,68 @@
 #include "parametric_source.hpp"
 #include <kernels/kernel_loop.hpp>
 
+template<class T> T k0(T lambda, T NA)
+{
+    return 2_PI / lambda * NA;
+}
+
+template<class T> struct source_point
+{
+    using rT = real_t<T>;
+    using cT = complex_t<T>;
+    rT intensity{1};
+    
+    // [0, 1]
+    rT sigmax{0}, sigmay{0};
+    
+    //  0 : unpolarization
+    //  1 : full TE-polarization
+    // -1 : full TM-polarization
+    rT dop{0};
+    
+    //  0       : linearly polarized
+    // -1       : left  circularly polarized
+    //  1       : right circularly polarized
+    //  (-1, 0) : left  elliptical polarized
+    //  ( 0, 1) : right  elliptical polarized
+    rT ellipticity{0};
+
+    // degree in rad
+    rT e_field_direction{0.5_PI};
+    
+    bool is_satisfy_bragg_condition() const
+    {
+        return int(sigmax) == sigmax && int(sigmay) == sigmay;
+    }
+    vec2<rT> k_vector(rT lambda, rT slow_rate = 1) const
+    {
+        vec2<rT> r{sigmax, sigmay};
+        return k0(lambda, slow_rate) * r;   
+    }
+
+    vec2<rT> get_TEM_coef() const
+    {
+        rT TM = (1 - dop) * 0.5;
+        rT TE = 1 - TM;
+        return {TE, TM};
+    }
+    vec2<vec2<cT>> polarization_state() const
+    {
+        auto cal_polarization_state = [](rT rad, rT ellipticity)
+        {
+            //== https://en.wikipedia.org/wiki/Polarization_(waves)#Polarization_ellipse
+            vec2<cT> polar{std::cos(e_field_direction), std::sin(e_field_direction)};
+            polar.at(1) *= std::exp(cT(0, 0.5_PI * ellipticity));
+            return polar;
+        }
+        auto [TE_coef, TM_coef] = get_TEM_coef();
+        vec2<cT> TE_ps = 0 == TE_coef ? vec2<cT>() : cal_polarization_state(e_field_direction, ellipticity);
+        vec2<cT> TM_ps = 0 == TM_coef ? vec2<cT>() :cal_polarization_state(e_field_direction - 0.5_PI, ellipticity);
+        return {TE_ps, TM_ps};
+    }
+
+};
+
 template<class T> struct source
 {
     using rT = real_t<T>;
