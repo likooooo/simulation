@@ -8,7 +8,7 @@ template<class T> struct parametric_source
 {
     static_assert(std::is_floating_point_v<T>);
 
-    struct traditional_source_params{T sigma, centerX, centerY;};
+    struct traditional_source_params{T sigma{1}, centerX{0}, centerY{0};};
     constexpr static T source_boundary_epsion =1e-5;
 
     static bool is_between_angle(const T x, const T y, const T angle1, const T angle2){ 
@@ -26,8 +26,9 @@ template<class T> struct parametric_source
 
     template<class TFunc> static void foreach_source_pixel(T* pSource, size_t xsize, size_t ysize, TFunc shape_maker)
     {
-        const T srcSigmaStepX = 2.0 / xsize;
-        const T srcSigmaStepY = 2.0 / ysize;
+        const T srcSigmaStepX = 2.0 / (xsize - 1);
+        const T srcSigmaStepY = 2.0 / (ysize - 1);
+        
         for (int iy = 0; iy < ysize; iy++){
             int indY = iy - ysize/2;
             T sigmaDy = indY * srcSigmaStepY;
@@ -43,19 +44,19 @@ template<class T> struct parametric_source
         const auto [sigma, centerX, centerY] = params;
         auto shape_maker =  [&](T& source, T sigmaDx, T sigmaDy){
             T dr = std::hypot(sigmaDx - centerX, sigmaDy - centerY); 
-            if (dr < sigma || is_almost_equal(dr, sigma, source_boundary_epsion)) source += 1.0;
+            if (dr <= sigma || is_almost_equal(dr, sigma, source_boundary_epsion)) source += 1.0;
         };
         foreach_source_pixel(pSource, xsize, ysize, shape_maker);
     }
 
     struct annular_source_params
     {
-        T sigmaOut;
-        T sigmaIn;
-        T sigmaInnerShiftX;
-        T sigmaInnerShiftY;
-        T sigmaShiftX;
-        T sigmaShiftY;
+        T sigmaOut{1};
+        T sigmaIn{0.5};
+        T sigmaInnerShiftX{0};
+        T sigmaInnerShiftY{0};
+        T sigmaShiftX{0};
+        T sigmaShiftY{0};
     };
     static void get_annular_source(T* pSource, size_t xsize, size_t ysize, const annular_source_params& params){
         const auto [sigmaOut, sigmaIn, sigmaInnerShiftX,  sigmaInnerShiftY, sigmaShiftX, sigmaShiftY]= params; 
@@ -72,7 +73,7 @@ template<class T> struct parametric_source
     struct dipole_fan_source_params
     {
         annular_source_params args;
-        T rotAngle, spanAngle;
+        T rotAngle{0}, spanAngle{M_PI_4f};
     };
 
     static void get_dipole_fan_source(T* pSource, size_t xsize, size_t ysize, const dipole_fan_source_params& params){
@@ -118,7 +119,7 @@ template<class T> struct parametric_source
         foreach_source_pixel(pSource, xsize, ysize, shape_maker);
     }
 
-    struct dipole_leaf_source_params{T sigma_D, sigma_d, rotAngle, sigmaShiftX, sigmaShiftY;};
+    struct dipole_leaf_source_params{T sigma_D{0.2}, sigma_d{0.3}, rotAngle{0}, sigmaShiftX{0}, sigmaShiftY{0};};
     static void cut_leaf(std::vector<T>& leaf, T target){
         for(auto& n :leaf) {
             if(!is_almost_equal(n, target, source_boundary_epsion)) n = 0;
@@ -162,7 +163,7 @@ template<class T> struct parametric_source
 
     struct quadratic_leaf_source_params{
         dipole_leaf_source_params params; 
-        T aspectRatio;
+        T aspectRatio{T(0.2)};
     };
     static void get_quadratic_leaf_source(T* pSource, size_t xsize, size_t ysize, const quadratic_leaf_source_params& params)
     {

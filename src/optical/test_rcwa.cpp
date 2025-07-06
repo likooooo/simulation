@@ -1,5 +1,5 @@
 #include <iostream>
-#include "RS.h"
+#include "RS/RS.h"
 
 int main()
 {

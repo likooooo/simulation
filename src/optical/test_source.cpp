@@ -24,7 +24,7 @@ void test_annular_source(int xsize, int ysize, int test_count, TDisplay& display
     for(auto sigma : test){
         sigma /= test_count;
         source = std::vector<real>(source.size());
-        ps::get_annular_source(source.data(), xsize, ysize, {1.0, sigma, 0, 0});
+        ps::get_annular_source(source.data(), xsize, ysize, {1.0, sigma, 0, 0, 0, 0});
         display(create_ndarray_from_vector(source, {xsize, ysize}));
     }
 }
@@ -107,20 +107,53 @@ void test_source_point_shift()
         print_table(reinterpret_cast<std::vector<src::source_point::print_type>&>(sp), {"kr", "sigma", "intensity"}, 1024);
     }
 }
+void test_source_grid()
+{
+    using rT = float;
+    using source_grid_t = source_grid<rT>;
+    using parametric_source_t = typename source_grid_t::parametric_source_t;
+    auto test = [](source_grid_t&& sg){
+        sg.plot();
+    };
+    source_grid_t::source_param sp{0};
+    sp.traditional = parametric_source_t::traditional_source_params();
+    test(source_grid_t(51, source_type::circular, sp, 0));
+    
+    sp.annular = parametric_source_t::annular_source_params();
+    test(source_grid_t(51, source_type::annular, sp, 0.5));
+    
+    sp.dipole_fan = parametric_source_t::dipole_fan_source_params();
+    test(source_grid_t(51, source_type::dipole_fan, sp, 1));
+    
+    sp.quadratic_fan = parametric_source_t::quadratic_fan_source_params();
+    test(source_grid_t(51, source_type::quasar, sp, 0, polarization_basis::TETM));
+    
+    sp.dipole_leaf = parametric_source_t::dipole_leaf_source_params();
+    test(source_grid_t(51, source_type::leaf2, sp, -0.5, polarization_basis::TETM));
+    
+    sp.quadratic_leaf = parametric_source_t::quadratic_leaf_source_params();
+    test(source_grid_t(51, source_type::leaf4, sp, -1, polarization_basis::TETM));
+}
 int main()
 {
     py_engine::init();
-    test_source_point_shift();
-    auto callback = py_plot::create_callback_simulation_fram_done(py::object(overload_click));
-    int xsize,ysize,frame_count; 
-    xsize = ysize= 470;
-    frame_count = 20;
-    test_traditional_source(xsize, ysize, frame_count, callback);
-    test_annular_source(xsize, ysize, frame_count, callback);
-    test_dipole_fan_source(xsize, ysize, frame_count, callback);
-    test_quadratic_fan_source(xsize, ysize, frame_count, callback);
-    test_dipole_leaf_source(xsize, ysize, frame_count, callback);
-    test_quadratic_leaf_source(xsize, ysize, frame_count, callback);
+    test_source_grid();
+    bool test_deprecated = false;
+    if(test_deprecated)
+    {
+        test_source_point_shift();
+        auto callback = py_plot::create_callback_simulation_fram_done(py::object(overload_click));
+        int xsize,ysize,frame_count; 
+        xsize = ysize= 470;
+        frame_count = 20;
+        test_traditional_source(xsize, ysize, frame_count, callback);
+        test_annular_source(xsize, ysize, frame_count, callback);
+        test_dipole_fan_source(xsize, ysize, frame_count, callback);
+        test_quadratic_fan_source(xsize, ysize, frame_count, callback);
+        test_dipole_leaf_source(xsize, ysize, frame_count, callback);
+        test_quadratic_leaf_source(xsize, ysize, frame_count, callback);
+    }
+    py_engine::dispose();
 }   
 
 np::ndarray source_image(const std::string& type, vec2<size_t> shape, real sigma)
