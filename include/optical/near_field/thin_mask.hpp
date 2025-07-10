@@ -3,6 +3,13 @@
 #include <optical/geometry.hpp>
 #include <optical/polynomials.hpp>
 #include <fft/spectrum_analysis.hpp>
+#include <optical/optical_numerics.hpp>
+#ifdef CPU_BACKEND_ENABLE
+#   include <mekil/cpu_backend.hpp>
+#endif
+#ifdef GPU_BACKEND_ENABLE
+#   include <cpp_cuda/gpu_backend.hpp>
+#endif
 template<class Image, class MetaData> 
 struct init_image
 {
@@ -10,7 +17,7 @@ struct init_image
     {
         info.tilesize *= USF;
         info.spatial.step /= typename MetaData::value_type(USF);
-        info.fourier.step /= typename MetaData::value_type(USF);
+        // info.fourier.step /= typename MetaData::value_type(USF);
         auto prod = std::accumulate(
             info.tilesize.begin(), info.tilesize.end(), 1, 
             [](auto a, auto b){return a * b;}
@@ -65,15 +72,32 @@ template<class T, class Image = std::vector<T>> struct thin_mask
             dissect_loop<point_dbu::value_type, 2>(edge, step * dissect_coef, 
                 [&](point_dbu current){
                     point_dbu index;
-                    index = convert_to<point_dbu>(current / mask_info.spatial.step);
-                    if(!full_compare<point_dbu, vec2<size_t>>::less(index, (mask_info.tilesize - point_dbu{dirx, diry}))) return;
-                    auto delta = convert_to<vec2<rT>>(current - index * mask_info.spatial.step) / step;
+                    index = convert_to<point_dbu>(current / step);
                     auto [ix, iy] = index;
-                    auto coefs = linear_interpolate<rT>:: template get_coefs<2>(delta) * (dissect_coef * 0.5 * sign);
-                    im.at(iy * mask_info.tilesize[0] + ix)                 += coefs[0][0];
-                    im.at(iy * mask_info.tilesize[0] + ix + dirx)          += coefs[1][0];
-                    im.at((iy + diry) * mask_info.tilesize[0] + ix)        += coefs[0][1];
-                    im.at((iy + diry) * mask_info.tilesize[0] + ix + dirx) += coefs[1][1];
+                    // if(full_compare<point_dbu, vec2<size_t>>::less(index, (mask_info.tilesize - point_dbu{dirx, diry})))
+                    if(ix < mask_info.tilesize[0] - 1 && iy < mask_info.tilesize[1] - 1)
+                    {
+                        auto delta = convert_to<vec2<rT>>(current - index * step) / step;
+                        auto coefs = linear_interpolate<rT>:: template get_coefs<2>(delta) * (dissect_coef * 0.5 * sign);
+                        im.at(iy * mask_info.tilesize[0] + ix)                 += coefs[0][0];
+                        im.at(iy * mask_info.tilesize[0] + ix + dirx)          += coefs[1][0];
+                        im.at((iy + diry) * mask_info.tilesize[0] + ix)        += coefs[0][1];
+                        im.at((iy + diry) * mask_info.tilesize[0] + ix + dirx) += coefs[1][1];
+                    }
+                    else if(ix < mask_info.tilesize[0] - 1 && iy == mask_info.tilesize[1] - 1)
+                    {
+                        rT delta = (current[0] - ix * step[0])/step[0];
+                        auto coefs = linear_interpolate<rT>::get_coef(delta) * (dissect_coef * 0.5 * sign);
+                        im.at(iy * mask_info.tilesize[0] + ix)                 += coefs[0];
+                        im.at(iy * mask_info.tilesize[0] + ix + dirx)          += coefs[1];
+                    }
+                    else if (ix == mask_info.tilesize[0] - 1 && iy < mask_info.tilesize[1] - 1)
+                    {
+                        rT delta = (current[1] - iy * step[1])/step[1];
+                        auto coefs = linear_interpolate<rT>::get_coef(delta) * (dissect_coef * 0.5 * sign);
+                        im.at(iy * mask_info.tilesize[0] + ix)        += coefs[0];
+                        im.at((iy + diry) * mask_info.tilesize[0] + ix) += coefs[1];
+                    }
                 }
             );
         };
@@ -135,7 +159,7 @@ template<class T, class Image = std::vector<T>> struct thin_mask
         return {line, cutline_meta};
     }
 
-    static std::tuple<Image, grid_info_in_dbu> mask_image(const grid_info_in_dbu& info, const std::vector<poly_dbu>& polys, size_t USF, rT dissect_coef)
+    static std::tuple<Image, grid_info_in_dbu> mask_image(const grid_info_in_dbu& info, const std::vector<poly_dbu>& polys, size_t USF, rT dissect_coef = 0.5)
     {
         auto [x, y, mask_info] = edge_pixelization(info, polys, USF, dissect_coef);
         print_grid_start_step<grid_info_in_dbu, debug_print<thin_mask>>(mask_info, "    intergral image");

@@ -73,6 +73,7 @@ struct cutline_data
 };
 struct user_config
 {
+    using value_type = double;
     using print_type = std::tuple<int, double, int, std::string, std::string, std::string, vec2<double>, vec2<size_t>, double, double, double>;
     double wavelength;
     double maxNA;

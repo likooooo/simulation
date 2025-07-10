@@ -102,11 +102,12 @@ template<class T> struct dbu_grid_start_step
     vec<size_t, dim> tilesize;
 };
 using grid_info_in_dbu = dbu_grid_start_step<double>;
-template<class TUserConfig> grid_info_in_dbu optical_numerics_in_dbu(cutline_dbu cutline, const TUserConfig& config)
+template<class TUserConfig> dbu_grid_start_step<typename TUserConfig::value_type> optical_numerics_in_dbu(cutline_dbu cutline, const TUserConfig& config)
 {
-    auto roi = convert<cutline_dbu, rectangle<double>>{}(cutline);
+    using rT = typename TUserConfig::value_type;
+    auto roi = convert<cutline_dbu, rectangle<rT>>{}(cutline);
     dbu_to_um(roi, config.dbu);
-    auto grid_in_um = optical_numerics<double>(roi, config.ambit, config.tilesize, config.maxNA, config.wavelength); 
+    auto grid_in_um = optical_numerics<rT>(roi, config.ambit, config.tilesize, config.maxNA, config.wavelength); 
     // print_grid_start_step(grid_in_um, "   origin grid-um");
 
     //== 1. spatial step
@@ -119,7 +120,7 @@ template<class TUserConfig> grid_info_in_dbu optical_numerics_in_dbu(cutline_dbu
     vec2<int64_t> spatial_start_in_dbu = ((from_in_dbu + to_in_dbu - spatial_domain_in_dbu) + 1) / 2; 
     
     //== check tilesize
-    vec2<double> ambit = config.ambit; um_to_dbu(ambit, config.dbu);
+    vec2<rT> ambit = config.ambit; um_to_dbu(ambit, config.dbu);
     vec2<int64_t> ambit_in_dbu = {int64_t(std::ceil(ambit[0])), int64_t(std::ceil(ambit[1]))};
     vec2<int64_t> span_in_dbu = to_in_dbu - from_in_dbu;
     int64_t length_in_dbu = std::max(span_in_dbu[0], span_in_dbu[1]);
@@ -135,22 +136,22 @@ template<class TUserConfig> grid_info_in_dbu optical_numerics_in_dbu(cutline_dbu
         }, {"*    roi or ambit is too large", ""});
     }
     grid_info_in_dbu grid_in_dbu;
-    // grid_start_step<double> grid_in_dbu;
+    // grid_start_step<rT> grid_in_dbu;
     grid_in_dbu.tilesize = config.tilesize;
     grid_in_dbu.spatial.start = spatial_start_in_dbu;
     grid_in_dbu.spatial.step  = spatial_step_in_dbu; 
-    double lambda_in_dbu      = config.wavelength; 
+    rT lambda_in_dbu      = config.wavelength; 
     um_to_dbu(lambda_in_dbu, config.dbu);
-    grid_in_dbu.fourier.step  = vec2<double>{lambda_in_dbu, lambda_in_dbu} / spatial_domain_in_dbu;
-    grid_in_dbu.fourier.start = vec2<double>{0, 0}; 
+    grid_in_dbu.fourier.step  = vec2<rT>{lambda_in_dbu, lambda_in_dbu} / spatial_domain_in_dbu;
+    grid_in_dbu.fourier.start = vec2<rT>{0, 0}; 
     
     if(debug_unclassified::verbose())
     {
-        grid_start_step<double> grid_to_um;
+        grid_start_step<rT> grid_to_um;
         grid_to_um.tilesize      = grid_in_dbu.tilesize; 
         grid_to_um.fourier       = grid_in_dbu.fourier;
-        grid_to_um.spatial.start = convert_to<vec2<double>>(grid_in_dbu.spatial.start); 
-        grid_to_um.spatial.step  = convert_to<vec2<double>>(grid_in_dbu.spatial.step); 
+        grid_to_um.spatial.start = convert_to<vec2<rT>>(grid_in_dbu.spatial.start); 
+        grid_to_um.spatial.step  = convert_to<vec2<rT>>(grid_in_dbu.spatial.step); 
         dbu_to_um(grid_to_um.spatial.start, config.dbu);
         dbu_to_um(grid_to_um.spatial.step, config.dbu);
         static bool alread_printted = false;

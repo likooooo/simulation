@@ -83,6 +83,26 @@ template<class T> struct source_point
         return sp;
     }
 };
+template<class T> std::ostream& operator<<(std::ostream& s, const source_point<T> & sp) 
+{
+    return s << sp.sigmaxy[0] << sp.sigmaxy[1] << sp.intensity << sp.e_field_direction << sp.DOP << sp.ellipticity;
+}
+template<class T> std::ostream& operator<<(std::ostream& s, const std::vector<source_point<T>> & a) 
+{
+    using print_type = std::tuple<size_t, T, T, T, T, T, T>;
+    std::vector<print_type> lines; 
+    lines.reserve(a.size());
+    for(size_t i = 0; i < a.size(); i++){
+        const source_point<T>& sp = a.at(i);
+        lines.push_back(print_type(
+            i, sp.sigmaxy[0], sp.sigmaxy[1], sp.intensity, 
+            sp.e_field_direction, sp.DOP, sp.ellipticity
+        ));
+    }
+    print_table(s, lines, std::vector<std::string>{"#", "Sigma-X", "Sigma-Y", "Intensity", "E-field-direction", "DOP", "Ellipticity"}, -1);
+    return s;
+}
+
 enum class polarization_basis
 {
     Descartes = 0, TETM, X_Y_Zone, count
