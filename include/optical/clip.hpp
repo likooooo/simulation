@@ -124,7 +124,7 @@ struct clip_data
     static clip_data cutline_clip_flow(const user_config& config, const std::vector<cutline_data>& table)
     {
         auto startstep_in_dbu = optical_numerics_in_dbu(cutline_dbu{0}, config);
-        auto shape_in_dbu     = (startstep_in_dbu.spatial.step * startstep_in_dbu.tilesize);
+        auto shape_in_dbu     = startstep_in_dbu.shape_in_dbu();
 
         std::vector<double> cutlines_in_um;
         cutlines_in_um.reserve(4 * table.size());

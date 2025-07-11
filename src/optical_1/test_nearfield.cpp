@@ -1,4 +1,4 @@
-#include <optical/near_field/thin_mask.hpp>
+#include <optical/near_field/thin_mask/binary_mask.hpp>
 #include <py_plugin.h>
 
  void test_thin_mask(const std::string& path = "/home/like/doc/Documents/YuWei/gds/gds/case11.gds")

@@ -72,7 +72,7 @@ template<class T, class TDisplay> void check_cutline(const std::vector<T>& edge_
         print_type(
             std::filesystem::path(oas_path).filename(), 
             data.pattern_name, 
-            dbu_to_um(convert_to<vec2<double>>(cutline_meta.spatial.start), user_config.dbu), 
+            dbu_to_physical(convert_to<vec2<double>>(cutline_meta.spatial.start), user_config.dbu), 
             data.weight,
             edge_image 
         )

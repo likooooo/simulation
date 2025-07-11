@@ -17,12 +17,7 @@ struct init_image
     {
         info.tilesize *= USF;
         info.spatial.step /= typename MetaData::value_type(USF);
-        // info.fourier.step /= typename MetaData::value_type(USF);
-        auto prod = std::accumulate(
-            info.tilesize.begin(), info.tilesize.end(), 1, 
-            [](auto a, auto b){return a * b;}
-        );
-        return {Image(prod), info};
+        return {Image(info.total_size()), info};
     }
     template<class TShape>constexpr Image operator()(TShape shape) const
     {
@@ -117,19 +112,20 @@ template<class T, class Image = std::vector<T>> struct thin_mask
         const auto& [start, step] = info.spatial;
         const auto& [from, to] = (cutline - start);
         grid_info_in_dbu cutline_meta = info;
-        cutline_meta.spatial.start = cutline[0];
-        cutline_meta.spatial.step = step / USF;
-        
-        cutline_meta.tilesize = convert_to<vec2<size_t>>(((to - from + step)/step) * USF); 
+        {
+            cutline_meta.spatial.start = cutline[0];
+            cutline_meta.spatial.step = step / USF;
+            cutline_meta.tilesize = convert_to<vec2<size_t>>(((to - from + step)/step) * USF); 
+        }
         Image line = gen_image(cutline_meta.tilesize);
-        dissect_loop<point_dbu::value_type, 2>(cutline, step * (rT(1.0)/USF), 
+        dissect_loop<point_dbu::value_type, 2>(cutline, cutline_meta.spatial.step, 
             [&](point_dbu current){
-                point_dbu idx_cutline = convert_to<point_dbu>((current - cutline[0]) / cutline_meta.spatial.step);
+                point_dbu idx_cutline =  cutline_meta[current]; //convert_to<point_dbu>((current - cutline[0]) / cutline_meta.spatial.step);
                 if(0 != idx_cutline[0] && 0 != idx_cutline[1]){
                     error_unclassified::out("invalid cutline :", cutline, " index : ", idx_cutline);
                     return;
                 }
-                point_dbu idx_image = convert_to<point_dbu>((current - start) / info.spatial.step);
+                point_dbu idx_image = info[current];//convert_to<point_dbu>((current - start) / info.spatial.step);
                 if(!full_compare<point_dbu, vec2<size_t>>::less(idx_image, info.tilesize)){
                     error_unclassified::out("cutline is too close to image border. ", std::make_tuple(cutline, current, start, step, info.tilesize));
                     return;
@@ -154,7 +150,7 @@ template<class T, class Image = std::vector<T>> struct thin_mask
             //== shift 反而会导致点的偏移 
             // line.reserve(line.size() + 2);
             // shift<T, complex_t<T>, rT>(line.data(), line.size(), 1, offset, 0);
-            // error_unclassified::out("    TODO shift ", dbu_to_um(double(cutline_center[0] - image_center[0]), 0.25), "(nm)", " image_center=", image_center, "(dbu) cutline_center=", cutline_center, "(dbu)");
+            // error_unclassified::out("    TODO shift ", dbu_to_physical(double(cutline_center[0] - image_center[0]), 0.25), "(nm)", " image_center=", image_center, "(dbu) cutline_center=", cutline_center, "(dbu)");
         }
         return {line, cutline_meta};
     }
