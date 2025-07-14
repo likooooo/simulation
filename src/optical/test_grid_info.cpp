@@ -1,5 +1,5 @@
 
-#include <optical/optical_numerics.hpp>
+#include <optical/simulation_grid_info.hpp>
 #include <py_helper.hpp>
 
 using rT = float;
@@ -7,9 +7,9 @@ using grid_info_t = grid_info<rT>;
 using point_dbu_t = typename grid_info_t::point_dbu_t;
 using point_physical_t = typename grid_info_t::point_physical_t;
 
-grid_info_t create_grid_info(int create_mode, point_dbu_t shape, rT lambda, rT sigma , rT NA, vec2<point_physical_t> roi, rT dbu)
+grid_info_t create_grid_info(int create_mode, point_dbu_t shape, rT lambda, rT sigma, rT NA, vec2<point_physical_t> roi, rT dbu)
 {
-    using func = grid_info_t (*)(point_dbu_t shape, rT lambda, rT sigma , rT NA, vec2<point_physical_t> roi, rT dbu);
+    using func = grid_info_t (*)(point_dbu_t shape, rT lambda, rT sigma, rT NA, vec2<point_physical_t> roi, rT dbu);
     constexpr vec3<func> mode_call = {grid_info_t::create_grid_info, grid_info_t::create_grid_info_bloch_mode, grid_info_t::create_grid_info_opc_mode};
     constexpr vec3<const char*> mode_name = {"default mode", "bloch mode", "OPC mode"};
     std::cout << "# create grid info in " << mode_name.at(create_mode) << ".\n";
@@ -41,9 +41,10 @@ int main(int argc, char** argv)
     create_grid_info(create_mode, shape, lambda, sigma, NA, roi, 1e-6);
 }
 
-BOOST_PYTHON_MODULE(lib_test_optical) {
+BOOST_PYTHON_MODULE(grid_info) {
     py_engine::init();
     py_engine::init_exception_for_pycall();
-    // py::def("optical_numerics_test", &optical_numerics_test<float>);
-    // py::def("optical_numerics_testV1", &main);
+    py::def("create_grid_info", &create_grid_info);
 }
+
+

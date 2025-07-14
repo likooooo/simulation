@@ -1,0 +1,6 @@
+[submodule "3rdparty/fdtd_solver"]
+	path = 3rdparty/fdtd_solver
+	url = git@github.com:likooooo/fdtd_solver.git
+[submodule "3rdparty/rcwa_solver"]
+	path = 3rdparty/rcwa_solver
+	url = git@github.com:likooooo/rcwa_solver.git

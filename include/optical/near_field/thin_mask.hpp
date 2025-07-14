@@ -3,7 +3,7 @@
 #include <optical/geometry.hpp>
 #include <optical/polynomials.hpp>
 #include <fft/spectrum_analysis.hpp>
-#include <optical/optical_numerics.hpp>
+#include <optical/simulation_grid_info.hpp>
 #ifdef CPU_BACKEND_ENABLE
 #   include <mekil/cpu_backend.hpp>
 #endif

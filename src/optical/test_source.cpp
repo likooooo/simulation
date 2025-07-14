@@ -115,24 +115,12 @@ void test_source_grid()
     auto test = [](source_grid_t&& sg){
         sg.plot();
     };
-    source_grid_t::source_param sp{0};
-    sp.traditional = parametric_source_t::traditional_source_params();
-    test(source_grid_t(51, source_type::circular, sp, 0));
-    
-    sp.annular = parametric_source_t::annular_source_params();
-    test(source_grid_t(51, source_type::annular, sp, 0.5));
-    
-    sp.dipole_fan = parametric_source_t::dipole_fan_source_params();
-    test(source_grid_t(51, source_type::dipole_fan, sp, 1));
-    
-    sp.quadratic_fan = parametric_source_t::quadratic_fan_source_params();
-    test(source_grid_t(51, source_type::quasar, sp, 0, polarization_basis::TETM));
-    
-    sp.dipole_leaf = parametric_source_t::dipole_leaf_source_params();
-    test(source_grid_t(51, source_type::leaf2, sp, -0.5, polarization_basis::TETM));
-    
-    sp.quadratic_leaf = parametric_source_t::quadratic_leaf_source_params();
-    test(source_grid_t(51, source_type::leaf4, sp, -1, polarization_basis::TETM));
+    test(source_grid_t::create(51, typename parametric_source_t::traditional_source_params(), 0));
+    test(source_grid_t::create(51, typename parametric_source_t::annular_source_params(), 0.5));
+    test(source_grid_t::create(51, typename parametric_source_t::dipole_fan_source_params(), 1));
+    test(source_grid_t::create(51, typename parametric_source_t::quadratic_fan_source_params(), 0, polarization_basis::TETM));
+    test(source_grid_t::create(51, typename parametric_source_t::dipole_leaf_source_params(), -0.5, polarization_basis::TETM));
+    test(source_grid_t::create(51, typename parametric_source_t::quadratic_leaf_source_params(), -1, polarization_basis::TETM));
 }
 int main()
 {
@@ -156,7 +144,15 @@ int main()
     py_engine::dispose();
 }   
 
-np::ndarray source_image(const std::string& type, vec2<size_t> shape, real sigma)
+np::ndarray display_source_image(const std::string& type, vec2<size_t> shape, real sigma);
+
+BOOST_PYTHON_MODULE(source) {
+    py_engine::init();
+    py_engine::init_exception_for_pycall();
+    py::def("display_source_image", &display_source_image);
+}
+
+np::ndarray display_source_image(const std::string& type, vec2<size_t> shape, real sigma)
 {
     std::vector<real> source(shape[0] * shape[1]);
     if(type == "traditional")
@@ -164,9 +160,13 @@ np::ndarray source_image(const std::string& type, vec2<size_t> shape, real sigma
     else if(type == "annular")
         ps::get_annular_source(source.data(), shape[1], shape[0], {1.0, sigma, 0, 0});
     else if(type == "dipole_fan")
-        ps::get_dipole_fan_source(source.data(), shape[1], shape[0], {{0.5f + 0.5f * sigma, 0.5f, 0, 0}, M_PIf * 2 * sigma, M_PI_4f});
+        ps::get_dipole_fan_source(source.data(), shape[1], shape[0], {{0.5f + 0.5f * sigma, 0.5f, 0, 0}, 0, M_PI_4f});
+    else if(type == "dipole_fan1")
+        ps::get_dipole_fan_source(source.data(), shape[1], shape[0], {{1.0f, 0.5f, 0, 0}, M_PIf * sigma, M_PI_4f});
     else if(type == "quadratic_fan")
-        ps::get_quadratic_fan_source(source.data(), shape[1], shape[0], {{0.5f + 0.5f * sigma, 0.5f, 0, 0}, M_PIf * sigma, M_PI_4f});
+        ps::get_quadratic_fan_source(source.data(), shape[1], shape[0], {{0.5f + 0.5f * sigma, 0.5f, 0, 0}, 0, M_PI_4f});
+    else if(type == "quadratic_fan1")
+        ps::get_quadratic_fan_source(source.data(), shape[1], shape[0], {{1.0f, 0.5f, 0, 0}, M_PIf * sigma, M_PI_4f});
     else if(type == "dipole_leaf")
         ps::get_dipole_leaf_source(source.data(), shape[1], shape[0], {0.2f + 0.8f * sigma, 0.3f + 0.7f * sigma, 0, 0, 0});
     else if(type == "quadratic_leaf")
@@ -179,10 +179,4 @@ np::ndarray source_image(const std::string& type, vec2<size_t> shape, real sigma
         throw std::invalid_argument("invalid sorce type " + type + " with (shape, sigma)=" + to_string(std::make_tuple(shape, sigma)));
     imshow(source, {shape[0], shape[1]});
     return create_ndarray_from_vector(source, {int(shape[0]), int(shape[1])});
-}
-
-BOOST_PYTHON_MODULE(lib_test_source) {
-    py_engine::init();
-    py_engine::init_exception_for_pycall();
-    py::def("source_image", &source_image);
 }

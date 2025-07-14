@@ -36,7 +36,7 @@ template<class rT> inline rT get_lens_cutoff_frequency(rT lambda, rT NA)
 template<class rT> inline rT get_simulation_system_cutoff_frequency(rT lambda, rT NA)
 {
     //== 从 near field 到 aerial image 的 intensity 会有一个平方, 带宽需要 *2
-    constexpr size_t doubling_bandwith_for_squaring_intensity = 2;
+    constexpr size_t doubling_bandwith_for_squaring_intensity = 1;
     return get_lens_cutoff_frequency(lambda, NA) * doubling_bandwith_for_squaring_intensity;
 }
 template<class rT, size_t _dim = 2> struct grid_info
@@ -44,9 +44,10 @@ template<class rT, size_t _dim = 2> struct grid_info
     constexpr static size_t dim = _dim;
     using point_dbu_t = point_nd_dbu<dim>;
     using point_physical_t = vec<rT, dim>;
-    struct StartStep{point_dbu_t start, step;};
+    
     rT dbu;
-    StartStep spatial, fourier;
+    struct {point_dbu_t start, step;} spatial;
+    struct {point_physical_t start, step;} fourier;
     point_dbu_t tilesize;
 
     point_dbu_t shape_in_dbu() const
@@ -69,7 +70,7 @@ template<class rT, size_t _dim = 2> struct grid_info
     {
         return {spatial.start, spatial.start + spatial.step * tilesize};
     }
-    vec2<point_dbu_t> get_fourier_roi() const
+    vec2<point_physical_t> get_fourier_roi() const
     {
         return {fourier.start, fourier.start + fourier.step * tilesize};
     }
@@ -89,23 +90,9 @@ template<class rT, size_t _dim = 2> struct grid_info
         info.dbu = dbu;
         info.tilesize = shape;
         info.fourier.start = {0};
-        info.fourier.step  = physical_to_dbu(lambda / pitch, dbu);
+        info.fourier.step  = lambda / (NA + sigma) / pitch; 
         info.spatial.start = physical_to_dbu(roi.at(0), dbu);
         info.spatial.step  = physical_to_dbu(pitch / shape, dbu);
-        return info;
-    }
-    //== roi 可以改变, shape 固定
-    static grid_info create_grid_info_opc_mode(point_dbu_t shape, rT lambda, rT sigma , rT NA, vec2<point_physical_t> roi, rT dbu)
-    {
-        grid_info info;
-        info.dbu = dbu;
-        info.tilesize = shape;
-        rT cutoff_freq = get_simulation_system_cutoff_frequency(lambda, NA);
-        info.spatial.step.fill(std::ceil(rT(1) / cutoff_freq / dbu));
-        point_dbu_t pitch_in_dbu = shape * info.spatial.step;
-        info.spatial.start = (physical_to_dbu(roi[0] + roi[1], dbu) - pitch_in_dbu) / 2;
-        info.fourier.start = {0};
-        info.fourier.step = physical_to_dbu(lambda / dbu_to_physical(pitch_in_dbu, dbu), dbu);
         return info;
     }
     //== shape 可以改变
@@ -114,11 +101,10 @@ template<class rT, size_t _dim = 2> struct grid_info
         grid_info info;
         info.dbu = dbu;
         point_physical_t pitch  = roi.at(1) - roi.at(0);
-        assert(pitch > 0);
         //== [0, 2pi)
         info.fourier.start = {0}; 
-        info.fourier.step  = physical_to_dbu(lambda / pitch, dbu);
-        rT cutoff_freq = get_simulation_system_cutoff_frequency(lambda, NA);
+        info.fourier.step  = lambda / (NA + sigma) / pitch;
+        rT cutoff_freq = get_simulation_system_cutoff_frequency(lambda, NA + sigma);
         for(size_t i = 0; i < dim; i++){
             dbu_t size = min_shape.at(i);
             info.tilesize.at(i) = std::max<dbu_t>(std::ceil(pitch.at(i) * cutoff_freq), size);
@@ -132,6 +118,51 @@ template<class rT, size_t _dim = 2> struct grid_info
         info.spatial.step  = physical_to_dbu(pitch / info.tilesize, dbu);
         return info;
     }
+    //== roi 可以改变, shape 固定
+    static grid_info create_grid_info_opc_mode(point_dbu_t shape, rT lambda, rT sigma, rT NA, vec2<point_physical_t> roi, rT dbu)
+    {
+        grid_info info;
+        info.dbu = dbu;
+        info.tilesize = shape;
+        rT cutoff_freq = get_simulation_system_cutoff_frequency(lambda, NA + sigma);
+        info.spatial.step.fill(std::ceil(rT(1) / cutoff_freq / dbu));
+        point_dbu_t pitch_in_dbu = shape * info.spatial.step;
+        info.spatial.start = (physical_to_dbu(roi[0] + roi[1], dbu) - pitch_in_dbu) / 2;
+        info.fourier.start = {0};
+        info.fourier.step = lambda / (NA + sigma) / dbu_to_physical(pitch_in_dbu, dbu);
+        return info;
+    }
+    static grid_info create_grid_info_opc_mode(point_dbu_t shape, rT lambda, rT sigma, rT NA, point_physical_t center, rT dbu)
+    {
+        return create_grid_info_opc_mode(shape, lambda, sigma, NA, {center, center}, dbu);
+    }
+    
+    static rT get_demangnification(rT sigma, rT NA)
+    {
+        return (sigma + NA) / NA;
+    }
+    //== without multiply k0. (2pi *NA/lambda)
+    static vec2<vec3<rT>> wafer_pov_k_space_boundary(rT NA, rT sigma, vec2<rT> shift_effict_by_chief_ray = {0, 0})
+    { 
+        //== k-space boundary without lens effect 
+        vec2<rT> center{0, 0};
+        rT radius = rT(1) / NA;
+        vec3<rT> gray_boundary{center[0], center[1], radius};
+        
+        //== k-space boundary with lens effect 
+        center += shift_effict_by_chief_ray;
+        radius = rT(1) / get_demangnification(sigma, NA);
+        vec3<rT> blue_boundary{center[0], center[1], radius};
+        return {gray_boundary, blue_boundary};
+    }
+    static vec2<vec3<rT>> mask_pov_k_space_boundary(rT NA)
+    {
+        vec2<rT> center{0, 0};
+        rT radius = rT(1) / NA;
+        vec3<rT> gray_boundary{center[0], center[1], radius};
+        vec3<rT> blue_boundary{center[0], center[1], 1};
+        return {gray_boundary, blue_boundary};
+    }
 };
 template<class rT, size_t dim = 2> inline std::ostream& operator << (std::ostream& stream, const grid_info<rT, dim>& in) 
 {
@@ -139,8 +170,8 @@ template<class rT, size_t dim = 2> inline std::ostream& operator << (std::ostrea
         std::make_tuple(std::string("tilesize      :"), to_string(in.tilesize)),
         std::make_tuple(std::string("spatial start :"), to_string(dbu_to_physical(in.spatial.start, in.dbu))),
         std::make_tuple(std::string("spatial step  :"), to_string(dbu_to_physical(in.spatial.step, in.dbu))),
-        std::make_tuple(std::string("fourier start :"), to_string(dbu_to_physical(in.fourier.start, in.dbu))),
-        std::make_tuple(std::string("fourier step  :"), to_string(dbu_to_physical(in.fourier.step, in.dbu))), 
+        std::make_tuple(std::string("fourier start :"), to_string(in.fourier.start)),
+        std::make_tuple(std::string("fourier step  :"), to_string(in.fourier.step)), 
     };
     print_table(stream, msg, {"* grid info", ""}, -1);
     return stream;

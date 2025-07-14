@@ -23,19 +23,22 @@ else()
 endif()
 
 
+file(GLOB regist_py_src ${CMAKE_CURRENT_LIST_DIR}/regist_py/*.cpp)
 file(GLOB tests ${CMAKE_CURRENT_LIST_DIR}/test_*.cpp)
 foreach(test IN LISTS tests)
-    get_filename_component(test_WLE ${test} NAME_WLE)
-    add_executable(${test_WLE} ${test})
-    target_link_libraries(${test_WLE} PUBLIC py_visualizer::py_visualizer ${backend_deps} ${RCWASOLVER_LIBRARIES})
+    get_filename_component(WLE ${test} NAME_WLE)
+    add_executable(${WLE} ${test})
+    target_link_libraries(${WLE} PUBLIC py_visualizer::py_visualizer ${backend_deps} ${RCWASOLVER_LIBRARIES})
     # target_include_directories(${test_WLE} PUBLIC "/mnt/c/Users/like/source/repos/infrastructure/fft/include/")
+    set_target_properties(${WLE} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}) 
+    copy_visualizer_files(${WLE} ${CMAKE_BINARY_DIR})
 
-    set_target_properties(${test_WLE} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}) 
-    copy_visualizer_files(${test_WLE} ${CMAKE_BINARY_DIR})
-
-    set(test_WLE _${test_WLE})
-    add_library(${test_WLE} SHARED ${test})
+    string(REGEX REPLACE "^test_" "" test_WLE ${WLE})
+    add_library(${test_WLE} SHARED ${test} ${regist_py_src})
     target_link_libraries(${test_WLE} PUBLIC py_visualizer::py_visualizer  ${backend_deps} ${RCWASOLVER_LIBRARIES})
     # target_include_directories(${test_WLE} PUBLIC "/mnt/c/Users/like/source/repos/infrastructure/fft/include/")
-    set_target_properties(${test_WLE} PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}) 
+    set_target_properties(${test_WLE} PROPERTIES 
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
+        PREFIX ""
+    ) 
 endforeach()

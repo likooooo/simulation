@@ -5,6 +5,9 @@
 ###################################################
 message(STATUS "load ctests automatic generated success")
 
+add_test(NAME "cd_${CMAKE_BINARY_DIR}_for_name_in_ls_${CMAKE_CURRENT_LIST_DIR}/_/src/optical/_sh_do_bash_name_done" COMMAND bash -c "PYTHONPATH=${CMAKE_BINARY_DIR}/src cd ${CMAKE_BINARY_DIR} && for name in $(ls ${CMAKE_CURRENT_LIST_DIR}/../src/optical/*.sh); do bash $name; done")
+set_tests_properties("cd_${CMAKE_BINARY_DIR}_for_name_in_ls_${CMAKE_CURRENT_LIST_DIR}/_/src/optical/_sh_do_bash_name_done" PROPERTIES LABELS "test;")
+    
 add_test(NAME "${CMAKE_BINARY_DIR}/test_fresnel" COMMAND bash -c "PYTHONPATH=${CMAKE_BINARY_DIR}/src ${CMAKE_BINARY_DIR}/test_fresnel")
 set_tests_properties("${CMAKE_BINARY_DIR}/test_fresnel" PROPERTIES LABELS "golden;")
     

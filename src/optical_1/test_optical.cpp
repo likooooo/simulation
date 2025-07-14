@@ -1,5 +1,5 @@
 
-#include <optical/optical_numerics.hpp>
+#include <optical/simulation_grid_info.hpp>
 #include <py_helper.hpp>
 
 // template<class T>void optical_numerics_test(rectangle<T> roi={0, -200, 400, 200},

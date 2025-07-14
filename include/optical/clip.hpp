@@ -1,6 +1,6 @@
 #pragma once
 #include "geometry.hpp"
-#include "optical_numerics.hpp"
+#include "simulation_grid_info.hpp"
 #include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 
 struct cutline_data

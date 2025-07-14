@@ -2,7 +2,7 @@
 #include <type_traist_notebook/type_traist.hpp>
 #include <variant>
 #include <assert.h>
-#include <optical/optical_numerics.hpp>
+#include <optical/simulation_grid_info.hpp>
 namespace litho_lab_f
 {
     using rT = float;

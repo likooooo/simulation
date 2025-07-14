@@ -3,7 +3,7 @@
 #include "jones_pupil.hpp"
 #include "zernike.hpp"
 #include <py_helper.hpp>
-#include <optical/optical_numerics.hpp>
+#include <optical/simulation_grid_info.hpp>
 
 template<class T> struct pupil_radial
 {

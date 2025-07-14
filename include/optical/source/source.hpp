@@ -53,6 +53,9 @@ template<class T> struct source_point
     {
         //== https://en.wikipedia.org/wiki/Polarization_(waves)#Polarization_ellipse
         vec2<cT> polar{std::cos(e_field_direction), std::sin(e_field_direction)};
+        //==
+        // [1          0] [x]
+        // [0 e^(i*pi/2)] [y]
         polar.at(1) *= std::exp(cT(0, 0.5_PI * ellipticity));
         return polar;
     }
@@ -65,12 +68,6 @@ template<class T> struct source_point
         rT TE = 1 - TM;
         return {TE, TM};
     }
-    vec2<source_point> decompose_componets() const
-    {
-        source_point te = *this;
-        source_point tm = te.decompose_unpolarized_component();
-        return {te, tm};
-    }
     source_point decompose_unpolarized_component()
     {
         auto [te_component, tm_component] = (get_TEM_coef(DOP) * intensity);
@@ -81,6 +78,17 @@ template<class T> struct source_point
         sp.intensity = tm_component;
         sp.e_field_direction = this->e_field_direction - 0.5_PI;
         return sp;
+    }
+    vec2<source_point> decompose_componets() const
+    {
+        source_point te = *this;
+        source_point tm = te.decompose_unpolarized_component();
+        return {te, tm};
+    }
+
+    bool operator == (const source_point& o) const
+    {
+        return 0 == std::memcmp(&o, this, sizeof(source_point));
     }
 };
 template<class T> std::ostream& operator<<(std::ostream& s, const source_point<T> & sp) 
@@ -99,11 +107,11 @@ template<class T> std::ostream& operator<<(std::ostream& s, const std::vector<so
             sp.e_field_direction, sp.DOP, sp.ellipticity
         ));
     }
-    print_table(s, lines, std::vector<std::string>{"#", "Sigma-X", "Sigma-Y", "Intensity", "E-field-direction", "DOP", "Ellipticity"}, -1);
+    print_table(s, lines, {"#", "Sigma-X", "Sigma-Y", "Intensity", "E-field-direction", "DOP", "Ellipticity"}, -1);
     return s;
 }
 
-enum class polarization_basis
+enum polarization_basis
 {
     Descartes = 0, TETM, X_Y_Zone, count
 };
@@ -114,16 +122,7 @@ template<class T> struct source_grid
     using rT = typename sp_t::rT;
     using cT = typename sp_t::cT;
     using parametric_source_t = parametric_source<T>;
-    union source_param
-    {
-        typename parametric_source_t::traditional_source_params traditional;
-        typename parametric_source_t::annular_source_params annular;
-        typename parametric_source_t::dipole_fan_source_params dipole_fan;
-        typename parametric_source_t::quadratic_fan_source_params quadratic_fan;
-        typename parametric_source_t::dipole_leaf_source_params dipole_leaf;
-        typename parametric_source_t::quadratic_leaf_source_params quadratic_leaf;
-    };
-    std::vector<sp_t> map;
+    std::vector<sp_t> source_points;
     vec2<size_t> shape; 
     vec2<rT> step; 
     vec2<rT> center;
@@ -131,7 +130,7 @@ template<class T> struct source_grid
 
     source_grid() = default;
     source_grid(size_t sample_size_odd, polarization_basis pb = polarization_basis::count) : 
-        map(std::vector<sp_t>(sample_size_odd * sample_size_odd)), 
+        source_points(std::vector<sp_t>(sample_size_odd * sample_size_odd)), 
         shape({sample_size_odd, sample_size_odd}), 
         step({rT(2) / (sample_size_odd - 1), rT(2) / (sample_size_odd - 1)}),
         center({rT(sample_size_odd /2), rT(sample_size_odd / 2)}), 
@@ -139,53 +138,54 @@ template<class T> struct source_grid
     {
         assert(sample_size_odd % 2 == 1);
     }
-    source_grid(size_t sample_size_odd, source_type t, const source_param & sp, 
-        rT ellipticity = 0, polarization_basis pb = polarization_basis::Descartes) 
-        : source_grid(sample_size_odd, pb)
+    template<class TP> static source_grid create(size_t size, const TP& params, rT e_field_direction = 0.5_PI, rT ellipticity = 0, size_t polarization = polarization_basis::Descartes)
     {
-        using ps = parametric_source<rT>;
-        std::vector<rT> intensity_image(map.size(), 0);
-        const auto [xsize, ysize] = shape;
-        if(source_type::circular == t)
-            parametric_source_t::get_traditional_source(intensity_image.data(), xsize, ysize, sp.traditional); 
-        else if(source_type::annular == t)
-            parametric_source_t::get_annular_source(intensity_image.data(), xsize, ysize, sp.annular); 
-        else if(source_type::dipole_fan == t)
-            parametric_source_t::get_dipole_fan_source(intensity_image.data(), xsize, ysize, sp.dipole_fan); 
-        else if(source_type::quasar == t)
-            parametric_source_t::get_quadratic_fan_source(intensity_image.data(), xsize, ysize, sp.quadratic_fan); 
-        else if(source_type::leaf2 == t)
-            parametric_source_t::get_dipole_leaf_source(intensity_image.data(), xsize, ysize, sp.dipole_leaf); 
-        else if(source_type::leaf4 == t)
-            parametric_source_t::get_quadratic_leaf_source(intensity_image.data(), xsize, ysize, sp.quadratic_leaf); 
-        
-        for(size_t y = 0; y < ysize; y++)
+        source_grid sg(size, (polarization_basis)polarization);
+        std::vector<rT> intensity_image(sg.source_points.size(), 0);
+        if constexpr(std::is_same_v<TP, typename parametric_source_t::traditional_source_params>)
+            parametric_source_t::get_traditional_source(intensity_image.data(), size, size, params); 
+        else if constexpr(std::is_same_v<TP, typename parametric_source_t::annular_source_params>)
+            parametric_source_t::get_annular_source(intensity_image.data(), size, size, params); 
+        else if constexpr(std::is_same_v<TP, typename parametric_source_t::dipole_fan_source_params>)
+            parametric_source_t::get_dipole_fan_source(intensity_image.data(), size, size, params); 
+        else if constexpr(std::is_same_v<TP, typename parametric_source_t::quadratic_fan_source_params>)
+            parametric_source_t::get_quadratic_fan_source(intensity_image.data(), size, size, params); 
+        else if constexpr(std::is_same_v<TP, typename parametric_source_t::dipole_leaf_source_params>)
+            parametric_source_t::get_dipole_leaf_source(intensity_image.data(), size, size, params); 
+        else if constexpr(std::is_same_v<TP, typename parametric_source_t::quadratic_leaf_source_params>)
+            parametric_source_t::get_quadratic_leaf_source(intensity_image.data(), size, size, params); 
+        else 
+            unreachable_constexpr_if<TP>();
+
+        for(size_t y = 0; y < size; y++)
         {
-            for(size_t x = 0; x < xsize; x++)
+            for(size_t x = 0; x < size; x++)
             {
-                auto& sp = map.at(y * xsize + x);
-                sp.intensity = intensity_image.at(y * xsize + x); 
+                auto& sp = sg.source_points.at(y * size + x);
+                sp.intensity = intensity_image.at(y * size + x); 
                 sp.ellipticity = ellipticity;
-                sp.sigmaxy = (vec2<rT>{rT(x), rT(y)} - center) * step;
-                if(pb == polarization_basis::TETM) sp.e_field_direction = std::atan2(sp.sigmaxy[1], sp.sigmaxy[0]);
+                sp.e_field_direction = e_field_direction;
+                sp.sigmaxy = (vec2<rT>{rT(x), rT(y)} - sg.center) * sg.step;
+                if(sg.basis == polarization_basis::TETM) sp.e_field_direction += std::atan2(sp.sigmaxy[1], sp.sigmaxy[0]);
             }
         }
+        return sg;
     }
     void shift_dc(const vec2<rT> DC_location = {0, 0})
     {
         if(DC_location == vec2<rT>(0, 0)) return;
-        for(auto& sp : map) sp.sigmaxy -= DC_location;
+        for(auto& sp : source_points) sp.sigmaxy -= DC_location;
     }
     void clear_invalid_source_points(rT intensity_threshold = 1e-2)
     {
-        map.erase(std::remove_if(map.begin(), map.end(), 
-            [intensity_threshold](const sp_t& sp) { return sp.intensity < intensity_threshold;}), map.end()
+        source_points.erase(std::remove_if(source_points.begin(), source_points.end(), 
+            [intensity_threshold](const sp_t& sp) { return sp.intensity < intensity_threshold;}), source_points.end()
         );
     }
     void decompose_polarized_components()
     {
         source_grid& sg = *this;
-        std::vector<sp_t>& polarized_components = sg.map;
+        std::vector<sp_t>& polarized_components = sg.source_points;
         sg.clear_invalid_source_points();
         polarized_components.reserve(polarized_components.size() * 2);
         const size_t n = polarized_components.size();
@@ -198,8 +198,8 @@ template<class T> struct source_grid
     rT calc_max_sigma(const vec2<rT> DC_location = {0, 0}) const
     {
         std::vector<rT> sigma_r;
-        sigma_r.reserve(map.size());
-        std::transform(map.begin(), map.end(), std::back_insert_iterator(sigma_r), 
+        sigma_r.reserve(source_points.size());
+        std::transform(source_points.begin(), source_points.end(), std::back_insert_iterator(sigma_r), 
             [&DC_location](const sp_t& sp){
                 if(!sp.is_valid()) return rT(0);
                 vec2<rT> sigmaxy = sp.sigmaxy - DC_location;
@@ -211,29 +211,29 @@ template<class T> struct source_grid
     std::vector<rT> get_intensity_bitmap() const
     {
         std::vector<rT> intensity_image;
-        intensity_image.reserve(map.size());
-        for(size_t i = 0; i < map.size(); i++) intensity_image.push_back(map.at(i).intensity);
+        intensity_image.reserve(source_points.size());
+        for(size_t i = 0; i < source_points.size(); i++) intensity_image.push_back(source_points.at(i).intensity);
         return intensity_image;
     }
     std::vector<rT> get_e_field_direction() const
     {
         std::vector<rT> dir;
-        dir.reserve(map.size());
-        for(size_t i = 0; i < map.size(); i++) dir.push_back(map.at(i).e_field_direction);
+        dir.reserve(source_points.size());
+        for(size_t i = 0; i < source_points.size(); i++) dir.push_back(source_points.at(i).e_field_direction);
         return dir;
     }
     std::vector<rT> get_ellipticity() const
     {
         std::vector<rT> ellipticity;
-        ellipticity.reserve(map.size());
-        for(size_t i = 0; i < map.size(); i++) ellipticity.push_back(map.at(i).ellipticity);
+        ellipticity.reserve(source_points.size());
+        for(size_t i = 0; i < source_points.size(); i++) ellipticity.push_back(source_points.at(i).ellipticity);
         return ellipticity;
     }
     std::vector<vec2<rT>> get_sigmaxy_bitmap() const
     {
         std::vector<vec2<rT>> sigmaxy;
-        sigmaxy.reserve(map.size());
-        for(size_t i = 0; i < map.size(); i++) sigmaxy.push_back(map.at(i).sigmaxy);
+        sigmaxy.reserve(source_points.size());
+        for(size_t i = 0; i < source_points.size(); i++) sigmaxy.push_back(source_points.at(i).sigmaxy);
         return sigmaxy;
     }
     void plot() const
@@ -241,17 +241,24 @@ template<class T> struct source_grid
         source_grid sg = *this;
         sg.decompose_polarized_components();
         std::vector<std::string> color;
-        color.reserve(sg.map.size());
+        color.reserve(sg.source_points.size());
         std::vector<rT> ellipticity = sg.get_ellipticity();
         std::transform(ellipticity.begin(), ellipticity.end(), std::back_insert_iterator(color), 
             [](rT ellip){return ellip >= 0 ? "red" : "blue";}
         );
         std::vector<rT> intensity = sg.get_intensity_bitmap();
-        intensity *= (rT(0.5) *  rT(2) / (shape[0] - 1));
+        rT half_step = (0.5 / (shape[0] - 1));
+        intensity *= half_step;
         plot_field<rT>(sg.get_sigmaxy_bitmap(), sg.get_e_field_direction(), intensity, ellipticity, color, "sigma XY");
     }
-
 };
+template<class T> std::ostream& operator<<(std::ostream& s, const source_grid<T> & a) 
+{
+    constexpr vec3<const char*>basis_str{"X-Y", "S-P", "TODO"};
+    return s << " shape=" << a.shape << "\n center=" << a.center << "\n polarization=" << 
+       basis_str.at(size_t(a.basis)) << std::endl << a.source_points;
+}
+
 // 近场插值 : file:///G:/Document/YuWei/hyper%20litho/panoramictech/UserGuide/Articles/NonConstantScatteringCoefficients/default.html
 // 坐标约定 : file:///G:/Document/YuWei/hyper%20litho/panoramictech/UserGuide/Articles/CoordinateSystemConventions/default.html
 template<class T> struct source

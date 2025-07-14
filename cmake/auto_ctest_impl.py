@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import sys
+import re
 
 def RemoteGoldenDir():
     return "none"
@@ -11,7 +12,15 @@ def get_test_db_filename():
     return "test_definition.txt"
 
 def cmake_code_block(args, label):
-    name = args.replace(" ", "_")
+    name = args
+    placeholder = "PLACEHOLDER_DOLLAR_BRACE"
+    name = name.replace("${", placeholder)
+    pattern = r'[^a-zA-Z0-9}}/]+'
+    name = re.sub(pattern, '_', name)
+    name = re.sub(r'_{2,}', '_', name)
+    name = name.strip('_')
+    name = name.replace(placeholder, "${")
+
     s = '''
 add_test(NAME "%s" COMMAND bash -c "PYTHONPATH=${CMAKE_BINARY_DIR}/src %s")
 set_tests_properties("%s" PROPERTIES LABELS "%s")

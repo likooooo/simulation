@@ -1,9 +1,6 @@
 #pragma once
 #include <type_traist_notebook/type_traist.hpp>
 
-enum class source_type{
-    circular = 0, annular, dipole_fan,quasar, leaf2, leaf4
-};
 template<class T> struct parametric_source
 {
     static_assert(std::is_floating_point_v<T>);
@@ -92,7 +89,11 @@ template<class T> struct parametric_source
 
         foreach_source_pixel(pSource, xsize, ysize, shape_maker);
     }
-    using quadratic_fan_source_params = dipole_fan_source_params;
+    struct quadratic_fan_source_params
+    {
+        annular_source_params args;
+        T rotAngle{0}, spanAngle{M_PI_4f};
+    };
     static void get_quadratic_fan_source(T* pSource, size_t xsize, size_t ysize, const quadratic_fan_source_params& params)
     {
         const auto [annular_params, rotAngle, spanAngle] = params;
