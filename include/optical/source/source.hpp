@@ -18,7 +18,7 @@ template<class T> struct source_point
     //== reference : panoramictech/UserGuide/Aerial/Illuminations/PupilMapIllumination.html
     using rT = real_t<T>;
     using cT = complex_t<T>;
-    rT intensity{0};
+    rT intensity{1};
 
     // degree in rad
     rT e_field_direction{0.5_PI};
@@ -48,7 +48,6 @@ template<class T> struct source_point
     {
         return k0(lambda, NA) * sigmaxy;   
     }
-
     vec2<cT> polarization_state() const
     {
         //== https://en.wikipedia.org/wiki/Polarization_(waves)#Polarization_ellipse
@@ -102,9 +101,10 @@ template<class T> std::ostream& operator<<(std::ostream& s, const std::vector<so
     lines.reserve(a.size());
     for(size_t i = 0; i < a.size(); i++){
         const source_point<T>& sp = a.at(i);
+        auto dir = sp.e_field_direction * real_t<T>(180)/1_PI;
         lines.push_back(print_type(
             i, sp.sigmaxy[0], sp.sigmaxy[1], sp.intensity, 
-            sp.e_field_direction, sp.DOP, sp.ellipticity
+            dir, sp.DOP, sp.ellipticity
         ));
     }
     print_table(s, lines, {"#", "Sigma-X", "Sigma-Y", "Intensity", "E-field-direction", "DOP", "Ellipticity"}, -1);
@@ -125,22 +125,21 @@ template<class T> struct source_grid
     std::vector<sp_t> source_points;
     vec2<size_t> shape; 
     vec2<rT> step; 
-    vec2<rT> center;
     polarization_basis basis{polarization_basis::Descartes};
 
-    source_grid() = default;
-    source_grid(size_t sample_size_odd, polarization_basis pb = polarization_basis::count) : 
+    source_grid(size_t sample_size_odd, polarization_basis pb = polarization_basis::Descartes) : 
         source_points(std::vector<sp_t>(sample_size_odd * sample_size_odd)), 
         shape({sample_size_odd, sample_size_odd}), 
         step({rT(2) / (sample_size_odd - 1), rT(2) / (sample_size_odd - 1)}),
-        center({rT(sample_size_odd /2), rT(sample_size_odd / 2)}), 
         basis(pb)
     {
         assert(sample_size_odd % 2 == 1);
     }
-    template<class TP> static source_grid create(size_t size, const TP& params, rT e_field_direction = 0.5_PI, rT ellipticity = 0, size_t polarization = polarization_basis::Descartes)
+    source_grid() : source_grid(11){}
+    template<class TP> void init(const TP& params, rT e_field_direction = 0.5_PI, rT ellipticity = 0, size_t polarization = polarization_basis::Descartes)
     {
-        source_grid sg(size, (polarization_basis)polarization);
+        size_t size = shape[0];
+        source_grid& sg = *this;
         std::vector<rT> intensity_image(sg.source_points.size(), 0);
         if constexpr(std::is_same_v<TP, typename parametric_source_t::traditional_source_params>)
             parametric_source_t::get_traditional_source(intensity_image.data(), size, size, params); 
@@ -157,25 +156,39 @@ template<class T> struct source_grid
         else 
             unreachable_constexpr_if<TP>();
 
-        for(size_t y = 0; y < size; y++)
-        {
-            for(size_t x = 0; x < size; x++)
-            {
+        for(size_t y = 0; y < size; y++){
+            for(size_t x = 0; x < size; x++){
                 auto& sp = sg.source_points.at(y * size + x);
                 sp.intensity = intensity_image.at(y * size + x); 
                 sp.ellipticity = ellipticity;
                 sp.e_field_direction = e_field_direction;
-                sp.sigmaxy = (vec2<rT>{rT(x), rT(y)} - sg.center) * sg.step;
+                sp.sigmaxy = vec2<rT>{rT(x), rT(y)} * sg.step;
                 if(sg.basis == polarization_basis::TETM) sp.e_field_direction += std::atan2(sp.sigmaxy[1], sp.sigmaxy[0]);
             }
         }
+    }
+    template<class TP> static source_grid create(size_t size, const TP& params, rT e_field_direction = 0.5_PI, rT ellipticity = 0, size_t polarization = polarization_basis::Descartes)
+    {
+        source_grid sg(size, (polarization_basis)polarization);
+        sg.init<TP>(params, e_field_direction, ellipticity, polarization);
         return sg;
+    }
+    
+    static vec2<rT> get_dc_from_chief_ray(rT theta, rT phi)
+    {
+        using std::sin, std::cos;
+        return {sin(theta) * cos(phi), sin(theta) * sin(phi)};
     }
     void shift_dc(const vec2<rT> DC_location = {0, 0})
     {
-        if(DC_location == vec2<rT>(0, 0)) return;
+        if(DC_location == vec2<rT>{0, 0}) return;
         for(auto& sp : source_points) sp.sigmaxy -= DC_location;
     }
+    void shift_dc(rT theta, rT phi)
+    {
+        shift_dc(get_dc_from_chief_ray(theta, phi));
+    }
+
     void clear_invalid_source_points(rT intensity_threshold = 1e-2)
     {
         source_points.erase(std::remove_if(source_points.begin(), source_points.end(), 
@@ -255,7 +268,7 @@ template<class T> struct source_grid
 template<class T> std::ostream& operator<<(std::ostream& s, const source_grid<T> & a) 
 {
     constexpr vec3<const char*>basis_str{"X-Y", "S-P", "TODO"};
-    return s << " shape=" << a.shape << "\n center=" << a.center << "\n polarization=" << 
+    return s << " shape=" << a.shape << "\n polarization=" << 
        basis_str.at(size_t(a.basis)) << std::endl << a.source_points;
 }
 

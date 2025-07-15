@@ -60,7 +60,9 @@ void regist_source_class()
         .def_readwrite("aspect_ratio", &quadratic_leaf_source::aspectRatio)
     ;
     using source_grid_t = source_grid<T>;
-    py::class_<source_grid_t>(("source_grid_" + suffix).c_str()).def(py::init<>())
+    py::class_<source_grid_t>(("source_grid_" + suffix).c_str())
+        .def(py::init<>())
+        .def(py::init<size_t>())
         .def("create_traditional_source", source_grid_t::template create<traditional_source>,
             (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = 0))
         .def("create_annular_source", source_grid_t::template create<annular_source>,
@@ -76,6 +78,9 @@ void regist_source_class()
         .def("__repr__", (std::string (*)(const source_grid_t&))&to_string<source_grid_t>)  
         .def("plot", &source_grid_t::plot)
         .def_readwrite("source_points", &source_grid_t::source_points)
+        .def("shift_dc", (void (source_grid_t::*)(T, T))&source_grid_t::shift_dc)
+        .def("clear_invalid_source_points", &source_grid_t::clear_invalid_source_points)
+        .def("plot", &source_grid_t::plot)
     ;
     init_stl_converters<std::vector<source_point_t>>();
 }
