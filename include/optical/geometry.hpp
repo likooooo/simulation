@@ -1,43 +1,16 @@
 #pragma once
+#include "simulation_grid_info.hpp"
 #include <py_helper.hpp>
 #include <type_traist_notebook/type_traist.hpp>
 
-using point_dbu         = point_nd_dbu<2>;
-using poly_vertex_dbu   = std::vector<point_dbu>;
-using shapes_vertex_dbu = std::vector<poly_vertex_dbu>;
+using point_dbu        = point_nd_dbu<2>;
+using poly_vertex_dbu  = std::vector<point_dbu>;
+using polys_vertex_dbu = std::vector<poly_vertex_dbu>;
 
-using cutline_dbu = vec2<point_dbu>;
-using poly_dbu    = std::vector<cutline_dbu>;
-using shapes_dbu  = std::vector<poly_dbu>;
+using line_dbu         = vec2<point_dbu>;
+using lines_dbu        = std::vector<line_dbu>;
+using polys_lines_dbu  = std::vector<lines_dbu>;
 
-
-template<class TCallback> inline void foreach_poly_points(np::array2df poly, TCallback&& callback_input_point)
-{
-    auto [pVertex, vertex_size] = ndarray_ref_no_padding<point_dbu>(poly);
-    for(size_t i = 0; i < vertex_size; i++, pVertex++) callback_input_point(*pVertex);
-}
-template<class TCallback> inline void foreach_poly_lines(np::array2df poly, TCallback&& callback_input_two_points)
-{
-    auto [pVertex, vertex_size] = ndarray_ref_no_padding<point_dbu>(poly);
-    for(size_t i = 0; i < vertex_size - 1; i++) callback_input_two_points(pVertex[i], pVertex[i + 1]);
-    callback_input_two_points(pVertex[vertex_size - 1], pVertex[0]);
-}
-template<class TCallback> inline void foreach_shapes(np::list_array2d shapes, TCallback&& callback_input_array2di){
-    for(size_t i = 0; i < len(shapes); i++){
-        np::array2di poly = py::extract<np::array2di>(shapes[i]);
-        callback_input_array2di(poly);
-    }
-}
-template<class TCallback> inline void foreach_shape_points(np::list_array2d shapes, TCallback&& callback_input_point){
-    foreach_shapes(shapes, [&](np::array2di poly){
-        foreach_poly_points(poly, std::forward<TCallback>(callback_input_point));
-    });
-}
-template<class TCallback> inline void foreach_shape_lines(np::list_array2d shapes, TCallback&& callback_input_two_points){
-    foreach_shapes(shapes, [&](np::array2di poly){
-        foreach_poly_lines(poly, std::forward<TCallback>(callback_input_two_points));
-    });
-}
 template<class T, size_t N> vec<T, N> unit_vector(const vec<T, N>& from, const vec<T, N>& to)
 {
     auto vec = to - from;
@@ -68,17 +41,44 @@ template<class T, size_t N> vec<T, N> norm_vector(const vec2<vec<T, N>>& line)
     const auto& [from, to] = line;
     return norm_vector(from, to);
 }
-
+inline typename point_dbu::value_type cross_product(point_dbu v1, point_dbu v2) 
+{
+    return v1[0] * v2[1] - v1[1] * v2[0];
+}
+//== p ∈[p1, p2)
+inline bool is_point_on_segment(point_dbu p, point_dbu p1, point_dbu p2) 
+{
+    point_dbu n = (p1 - p) * (p2 - p);
+    return (p1 == p) || (n[0] < 0 && n[1] == 0) || (n[1] < 0 && n[0] == 0);
+}
+inline int is_horizon(point_dbu from, point_dbu to) 
+{
+    from = to - from;
+    return std::clamp<int>(int(0 == from[1]) * from[0], -1, 1);
+}
+inline int is_vertical(point_dbu from, point_dbu to) 
+{
+    from = to - from;
+    return std::clamp<int>(int(0 == from[0]) * from[1], -1, 1);
+}
 
 template<class T, size_t N, class PixelFunc, size_t Dim = 0>
 inline void __dissect_loop_impl(const vec2<vec<T, N>>& p, const vec<T, N>& step, PixelFunc&& func, std::array<T, N>& indices) 
 {
-    assert(step > 0);
     const auto&[from, to] = p;
     if constexpr (Dim < N) 
     {
+        assert(
+            [&]()->bool
+            { 
+                if(step[Dim] < 0) return false; 
+                if(step[Dim] == 0 && from[Dim] != to[Dim]) return false;
+                return true;
+            }()
+        );
         T lb = std::min(from[Dim], to[Dim]);
         T ub = std::max(from[Dim], to[Dim]);
+        indices[Dim] = lb;
         if(ub == lb) ub = lb + step[Dim];
         for (indices[Dim] = lb; indices[Dim] < ub; indices[Dim] += step[Dim]) 
         {

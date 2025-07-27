@@ -1,11 +1,6 @@
 #include <optical/simulation_grid_info.hpp>
 #include <py_helper.hpp>
 
-template<class T> std::string grid_info_str_repr(const grid_info<T>& obj) {
-    std::ostringstream oss;
-    oss << obj;
-    return oss.str();
-}
 template<class T, size_t dim = 2> void regist_grid_info()
 {
     using grid_info_t = grid_info<T, dim>;
@@ -20,6 +15,8 @@ template<class T, size_t dim = 2> void regist_grid_info()
         .def("create_grid_info", grid_info_t::create_grid_info)
         .def("wafer_pov_k_space_boundary", grid_info_t::wafer_pov_k_space_boundary)
         .def("mask_pov_k_space_boundary", grid_info_t::mask_pov_k_space_boundary)
+        .def("display", &grid_info_t::template display<real_t<T>>)
+        .def("display", &grid_info_t::template display<complex_t<T>>)
     ;
     using FT = decltype(grid_info_t::fourier);
     py::class_<FT>(("fourier_info_" + suffix).c_str()).def(py::init<>())  

@@ -184,9 +184,9 @@ template<class T> struct source_grid
         if(DC_location == vec2<rT>{0, 0}) return;
         for(auto& sp : source_points) sp.sigmaxy -= DC_location;
     }
-    void shift_dc(rT theta, rT phi)
+    void shift_dc(rT theta, rT phi, rT maskNA)
     {
-        shift_dc(get_dc_from_chief_ray(theta, phi));
+        shift_dc(get_dc_from_chief_ray(theta, phi) / maskNA);
     }
 
     void clear_invalid_source_points(rT intensity_threshold = 1e-2)

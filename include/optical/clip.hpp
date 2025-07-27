@@ -5,9 +5,9 @@
 
 struct cutline_data
 {
-    using print_type = std::tuple<std::string, cutline_dbu, int , double, double, double, std::vector<double>>;
+    using print_type = std::tuple<std::string, line_dbu, int , double, double, double, std::vector<double>>;
     std::string pattern_name;
-    cutline_dbu cutline;
+    line_dbu cutline;
     int polar;
     double desigin_cd;
     double measured_cd;
@@ -58,7 +58,7 @@ struct cutline_data
             pyobject_wrapper line(lines[i]);
             cutline_data temp;
             temp.pattern_name = convert_to<std::string>(line["pattern_name"]);
-            temp.cutline = convert_to<cutline_dbu>(line["cutline"]);
+            temp.cutline = convert_to<line_dbu>(line["cutline"]);
             temp.polar = convert_to<int>(line["polar"]);
             temp.measured_cd = convert_to<double>(line["measured_cd"]);
             temp.desigin_cd = convert_to<double>(line["desigin_cd"]);
@@ -123,7 +123,7 @@ struct clip_data
 
     static clip_data cutline_clip_flow(const user_config& config, const std::vector<cutline_data>& table)
     {
-        auto startstep_in_dbu = optical_numerics_in_dbu(cutline_dbu{0}, config);
+        auto startstep_in_dbu = optical_numerics_in_dbu(line_dbu{0}, config);
         auto shape_in_dbu     = startstep_in_dbu.shape_in_dbu();
 
         std::vector<double> cutlines_in_um;

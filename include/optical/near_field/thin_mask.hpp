@@ -1,9 +1,9 @@
 #pragma once
 #include <type_traist_notebook/type_traist.hpp>
+#include <optical/simulation_grid_info.hpp>
 #include <optical/geometry.hpp>
 #include <optical/polynomials.hpp>
 #include <fft/spectrum_analysis.hpp>
-#include <optical/simulation_grid_info.hpp>
 #ifdef CPU_BACKEND_ENABLE
 #   include <mekil/cpu_backend.hpp>
 #endif
@@ -31,17 +31,17 @@ struct init_image
 
 namespace near_filed
 {
-    shapes_dbu load_shapes_from_file(const std::string& path, const std::string& cell_name, int layer_id)
+    polys_lines_dbu load_shapes_from_file(const std::string& path, const std::string& cell_name, int layer_id)
     {
         py::tuple poly_and_holes = py_plugin::call<py::tuple>("klayout_op", "load_oas_vertexs", path, cell_name, layer_id);
         auto polys = convert_to<np::list_array2d>(poly_and_holes[0]);
         auto holes = convert_to<np::list_array2d>(poly_and_holes[1]);
         polys += holes;
-        shapes_dbu shapes; shapes.reserve(len(polys));
+        polys_lines_dbu shapes; shapes.reserve(len(polys));
         foreach_shapes(polys, [&](np::array2di poly){
             shapes.emplace_back().reserve(poly.shape(0));
             foreach_poly_lines(poly, [&](point_dbu from, point_dbu to){
-                shapes.back().push_back(cutline_dbu{from, to});
+                shapes.back().push_back(line_dbu{from, to});
             });
         });
         return shapes;
@@ -53,14 +53,14 @@ template<class T, class Image = std::vector<T>> struct thin_mask
     using cT = complex_t<T>;
     using rT = real_t<T>;
     constexpr static init_image<Image, grid_info_in_dbu> gen_image{};
-    static std::tuple<Image, Image, grid_info_in_dbu> edge_pixelization(const grid_info_in_dbu& info, const std::vector<poly_dbu>& polys, size_t USF = 8, rT dissect_coef = 0.5)
+    static std::tuple<Image, Image, grid_info_in_dbu> edge_pixelization(const grid_info_in_dbu& info, const std::vector<lines_dbu>& polys, size_t USF = 8, rT dissect_coef = 0.5)
     {
         auto [x, mask_info] = gen_image(info, USF);
         auto y = x;
         const auto& start = mask_info.spatial.start;
         const auto& step = mask_info.spatial.step;
-        auto roi = cutline_dbu{point_dbu{0,0}, step * mask_info.tilesize};
-        auto interpolate_to = [&](Image& im, cutline_dbu edge, point_dbu norm_dir){
+        auto roi = line_dbu{point_dbu{0,0}, step * mask_info.tilesize};
+        auto interpolate_to = [&](Image& im, line_dbu edge, point_dbu norm_dir){
             rT sign = rT(-1) * (norm_dir[0] + norm_dir[1]);
             int dirx = 1;
             int diry = 1;
@@ -107,7 +107,7 @@ template<class T, class Image = std::vector<T>> struct thin_mask
         }
         return {x, y, mask_info};
     }
-    static std::tuple<Image, grid_info_in_dbu> get_edge_from_rasterization(const grid_info_in_dbu& info, const Image& image, const cutline_dbu& cutline, size_t USF = 1)
+    static std::tuple<Image, grid_info_in_dbu> get_edge_from_rasterization(const grid_info_in_dbu& info, const Image& image, const line_dbu& cutline, size_t USF = 1)
     {
         const auto& [start, step] = info.spatial;
         const auto& [from, to] = (cutline - start);
@@ -155,7 +155,7 @@ template<class T, class Image = std::vector<T>> struct thin_mask
         return {line, cutline_meta};
     }
 
-    static std::tuple<Image, grid_info_in_dbu> mask_image(const grid_info_in_dbu& info, const std::vector<poly_dbu>& polys, size_t USF, rT dissect_coef = 0.5)
+    static std::tuple<Image, grid_info_in_dbu> mask_image(const grid_info_in_dbu& info, const std::vector<lines_dbu>& polys, size_t USF, rT dissect_coef = 0.5)
     {
         auto [x, y, mask_info] = edge_pixelization(info, polys, USF, dissect_coef);
         print_grid_start_step<grid_info_in_dbu, debug_print<thin_mask>>(mask_info, "    intergral image");

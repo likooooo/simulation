@@ -78,8 +78,9 @@ void regist_source_class()
         .def("__repr__", (std::string (*)(const source_grid_t&))&to_string<source_grid_t>)  
         .def("plot", &source_grid_t::plot)
         .def_readwrite("source_points", &source_grid_t::source_points)
-        .def("shift_dc", (void (source_grid_t::*)(T, T))&source_grid_t::shift_dc)
+        .def("shift_dc", (void (source_grid_t::*)(T, T, T))&source_grid_t::shift_dc)
         .def("clear_invalid_source_points", &source_grid_t::clear_invalid_source_points)
+        .def("get_dc_from_chief_ray", source_grid_t::get_dc_from_chief_ray)
         .def("plot", &source_grid_t::plot)
     ;
     init_stl_converters<std::vector<source_point_t>>();

@@ -21,11 +21,11 @@ BOOST_PYTHON_MODULE(lib_test_resist_cnn) {
 const uca::backend<double>& backend = uca::cpu<double>::ref();
 std::tuple<terms_cutline<double>, grid_info_in_dbu> get_resist_cutline(const std::string& oas_path, const cutline_data& data, const user_config& user_config, const py::object params_optional)
 {
-    const cutline_dbu& cutline = data.cutline;
+    const line_dbu& cutline = data.cutline;
     auto startstep_in_dbu = optical_numerics_in_dbu(cutline, user_config);
     //== load subclip
     using thin_mask_solver = thin_mask<double>;
-    shapes_dbu shapes = near_filed::load_shapes_from_file(oas_path.c_str(), user_config.cell_name, user_config.layer_id);
+    polys_lines_dbu shapes = near_filed::load_shapes_from_file(oas_path.c_str(), user_config.cell_name, user_config.layer_id);
     auto [mask, mask_info] = thin_mask_solver::mask_image(startstep_in_dbu, shapes, convert_to<size_t>(params_optional["mask_USF"]),  convert_to<double>(params_optional["mask_edge_dissect_coef"]));
     assert(mask_info.spatial.step[0] ==  mask_info.spatial.step[1]);
     auto [images, N] = resist::gauss_laguerre(mask, mask_info.tilesize, 

@@ -14,7 +14,7 @@ template<class T> using terms_dense_features_intensity = std::vector<dense_inten
 template<class T> using terms_cutline = std::vector<std::vector<T>>;
 template<class T> using aerial_slice = std::vector<T>;
 
-inline int get_cutline_dir(const cutline_dbu& cutline)
+inline int get_cutline_dir(const line_dbu& cutline)
 {
     int axis = -1;
     if(cutline[0][1] == cutline[1][1]) axis = 0;
@@ -23,7 +23,7 @@ inline int get_cutline_dir(const cutline_dbu& cutline)
     return axis;
 }
 
-inline std::tuple<cutline_feature_pos_dbu, int> get_feature_pos_from_cutline(const cutline_dbu& cutline, double target_cd_in_dbu, const point_dbu start, point_dbu step, double dbu)
+inline std::tuple<cutline_feature_pos_dbu, int> get_feature_pos_from_cutline(const line_dbu& cutline, double target_cd_in_dbu, const point_dbu start, point_dbu step, double dbu)
 {
     int axis = get_cutline_dir(cutline);
     // auto center = double(cutline[0][axis] + cutline[1][axis] -1) / 2 - start[axis]; 
@@ -38,7 +38,7 @@ inline std::tuple<cutline_feature_pos_dbu, int> get_feature_pos_from_cutline(con
     };
     return {pos , axis};
 }
-template<class T> inline terms_features_intensity<T> get_feature_intensity_from_cutline(const cutline_dbu& cutline, double measured_cd_in_dbu, const terms_cutline<T>& yArray, const point_dbu start, point_dbu step, double dbu)
+template<class T> inline terms_features_intensity<T> get_feature_intensity_from_cutline(const line_dbu& cutline, double measured_cd_in_dbu, const terms_cutline<T>& yArray, const point_dbu start, point_dbu step, double dbu)
 {
     auto [pos, axis] = get_feature_pos_from_cutline(cutline, measured_cd_in_dbu, start, step, dbu);
     terms_features_intensity<T> features;
@@ -80,7 +80,7 @@ inline std::tuple<cutline_dense_feature_pos_dbu, int> to_dense_feature(const std
     vec_on = {on_lhs, on_rhs};
     return {cutline_dense_feature_pos_dbu{vec_in, vec_on, vec_out}, axis};
 }
-template<class T> inline terms_dense_features_intensity<T> get_dense_feature_intensity_from_cutline(const cutline_dbu& cutline, double measured_cd_in_dbu, const terms_cutline<T>& yArray, const point_dbu start, const point_dbu step, double dbu)
+template<class T> inline terms_dense_features_intensity<T> get_dense_feature_intensity_from_cutline(const line_dbu& cutline, double measured_cd_in_dbu, const terms_cutline<T>& yArray, const point_dbu start, const point_dbu step, double dbu)
 {
     auto [dense_points, axis] = to_dense_feature(get_feature_pos_from_cutline(cutline, measured_cd_in_dbu, start, step, dbu), step);
     const auto& [vec_in, vec_on, vec_out] = dense_points;

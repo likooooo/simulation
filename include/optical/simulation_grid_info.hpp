@@ -1,6 +1,10 @@
 #pragma once
 #include <type_traist_notebook/type_traist.hpp>
+#include <type_traist_notebook/uca/backend.hpp>
+#include <py_helper.hpp>
 #include <assert.h>
+
+template<class T> uca::backend<T>& get_math_backend();
 
 template<class T, class TTo> struct rebind
 {
@@ -44,11 +48,11 @@ template<class rT, size_t _dim = 2> struct grid_info
     constexpr static size_t dim = _dim;
     using point_dbu_t = point_nd_dbu<dim>;
     using point_physical_t = vec<rT, dim>;
-    
+
     rT dbu;
     struct {point_dbu_t start, step;} spatial;
     struct {point_physical_t start, step;} fourier;
-    point_dbu_t tilesize;
+    vec<size_t, dim> tilesize;
 
     point_dbu_t shape_in_dbu() const
     {
@@ -59,6 +63,24 @@ template<class rT, size_t _dim = 2> struct grid_info
         point_dbu_t idx = (pos_in_dbu - spatial.start) / spatial.step;
         assert(!(tilesize > idx));
         return idx;
+    }
+    vec<size_t, dim> stride() const
+    {
+        vec<size_t, dim> s;
+        s.fill(1);
+        for(size_t i = 1; i < dim; i++){
+            for(size_t j = 0; j < i; j++){
+                s.at(i) *= tilesize.at(j);
+            }
+        }
+        // std::reverse(s.begin(), s.end());
+        return s;
+    }
+    size_t operator()(const vec<size_t, dim>& indices_which_last_dim_change_fastest) const
+    {
+        vec<size_t, dim> s = stride();
+        s *= indices_which_last_dim_change_fastest;
+        return std::accumulate(s.begin(), s.end(), size_t(0));
     }
     size_t total_size() const
     {
@@ -74,6 +96,11 @@ template<class rT, size_t _dim = 2> struct grid_info
     {
         return {fourier.start, fourier.start + fourier.step * tilesize};
     }
+    template<class T>void display(const std::vector<T>& rowdata) const
+    {
+        imshow(rowdata, convert_to<std::vector<size_t>>(tilesize));
+    }
+
     // //== user definition
     // template<class UnaryOperation> point_dbu_t physical_to_dbu(const point_physical_t& pos_in_physical, 
     //     UnaryOperation op = [](rT n){return typename point_dbu_t::value_type(std::floor(n));}
@@ -83,7 +110,7 @@ template<class rT, size_t _dim = 2> struct grid_info
     //     std::transform(pos_in_physical.begin(), pos_in_physical.end(), n.begin(), op);
     //     return n;
     // }
-    static grid_info create_grid_info(point_dbu_t shape, rT lambda, rT sigma , rT NA, vec2<point_physical_t> roi, rT dbu)
+    static grid_info create_grid_info(vec<size_t, dim> shape, rT lambda, rT sigma , rT NA, vec2<point_physical_t> roi, rT dbu)
     {
         point_physical_t pitch  = roi.at(1) - roi.at(0);
         grid_info info;
@@ -96,7 +123,7 @@ template<class rT, size_t _dim = 2> struct grid_info
         return info;
     }
     //== shape 可以改变
-    static grid_info create_grid_info_bloch_mode(point_dbu_t min_shape, rT lambda, rT sigma , rT NA, vec2<point_physical_t> roi, rT dbu)
+    static grid_info create_grid_info_bloch_mode(vec<size_t, dim> min_shape, rT lambda, rT sigma , rT NA, vec2<point_physical_t> roi, rT dbu)
     {
         grid_info info;
         info.dbu = dbu;
@@ -119,14 +146,14 @@ template<class rT, size_t _dim = 2> struct grid_info
         return info;
     }
     //== roi 可以改变, shape 固定
-    static grid_info create_grid_info_opc_mode(point_dbu_t shape, rT lambda, rT sigma, rT NA, vec2<point_physical_t> roi, rT dbu)
+    static grid_info create_grid_info_opc_mode(vec<size_t, dim> shape, rT lambda, rT sigma, rT NA, vec2<point_physical_t> roi, rT dbu)
     {
         grid_info info;
         info.dbu = dbu;
         info.tilesize = shape;
         rT cutoff_freq = get_simulation_system_cutoff_frequency(lambda, NA + sigma);
         info.spatial.step.fill(std::ceil(rT(1) / cutoff_freq / dbu));
-        point_dbu_t pitch_in_dbu = shape * info.spatial.step;
+        point_dbu_t pitch_in_dbu = info.spatial.step * shape;
         info.spatial.start = (physical_to_dbu(roi[0] + roi[1], dbu) - pitch_in_dbu) / 2;
         info.fourier.start = {0};
         info.fourier.step = lambda / (NA + sigma) / dbu_to_physical(pitch_in_dbu, dbu);
@@ -176,7 +203,6 @@ template<class rT, size_t dim = 2> inline std::ostream& operator << (std::ostrea
     print_table(stream, msg, {"* grid info", ""}, -1);
     return stream;
 }
-
 // template<class T, size_t DIM=2>
 // struct grid_start_step
 // {
@@ -268,10 +294,10 @@ template<class rT, size_t dim = 2> inline std::ostream& operator << (std::ostrea
 
 // #include "geometry.hpp"
 // using grid_info_in_dbu = dbu_grid_start_step<double>;
-// template<class TUserConfig> dbu_grid_start_step<typename TUserConfig::value_type> optical_numerics_in_dbu(cutline_dbu cutline, const TUserConfig& config)
+// template<class TUserConfig> dbu_grid_start_step<typename TUserConfig::value_type> optical_numerics_in_dbu(line_dbu cutline, const TUserConfig& config)
 // {
 //     using rT = typename TUserConfig::value_type;
-//     auto roi = convert<cutline_dbu, rectangle<rT>>{}(cutline);
+//     auto roi = convert<line_dbu, rectangle<rT>>{}(cutline);
 //     dbu_to_physical(roi, config.dbu);
 //     auto grid_in_um = optical_numerics<rT>(roi, config.ambit, config.tilesize, config.maxNA, config.wavelength); 
 //     // print_grid_start_step(grid_in_um, "   origin grid-um");
