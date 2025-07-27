@@ -10,7 +10,7 @@ template<class T, size_t dim = 2> void regist_thin_mask()
     py::class_<bm_t>("binary_mask")
         .def("create", (std::vector<cT> (*)(cT , cT , const grid_info<rT, dim>&, const polys_vertex_dbu& ))&bm_t::create)
     ;
-    py::class_<bm_t>("thin_mask")
+    py::class_<thin_mask<T, dim>>("thin_mask")
         .def(py::init<>())       
         .def("create", ( std::vector<cT> (*)(cT , cT , const grid_info<rT, dim>&, const lines_dbu& ))&thin_mask<T, dim>::create)
     ;
