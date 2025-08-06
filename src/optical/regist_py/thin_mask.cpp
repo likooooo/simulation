@@ -1,5 +1,6 @@
 #include <optical/near_field/thin_mask/binary_mask.hpp>
 #include <optical/near_field/thin_mask/thin_mask.hpp>
+#include <optical/near_field/diffraction.hpp>
 #include <py_helper.hpp>
 #include "backend.hpp"
 template<class T, size_t dim = 2> void regist_thin_mask()
@@ -17,4 +18,5 @@ template<class T, size_t dim = 2> void regist_thin_mask()
 }
 regist_py(
     regist_thin_mask<float, 2>();
+    py::def("get_diffraction_order", get_diffraction_order<float>, (py::arg("grid_info"), py::arg("sigmaxy") = vec2<float>{0, 0}));
 );

@@ -122,6 +122,13 @@ template<class rT, size_t _dim = 2> struct grid_info
         info.spatial.step  = physical_to_dbu(pitch / shape, dbu);
         return info;
     }
+    static vec<size_t, dim> nyquist_sampling_rate(point_physical_t pitch, rT lambda, rT sigma , rT NA, size_t USF = 8)
+    {
+        rT cutoff_freq = get_lens_cutoff_frequency(lambda, NA + sigma);
+        vec<size_t, dim> shape;
+        for(size_t i = 0; i < dim; i++) shape.at(i) = USF * std::ceil(pitch.at(i) * 2 * cutoff_freq);
+        return shape;
+    }
     //== shape 可以改变
     static grid_info create_grid_info_bloch_mode(vec<size_t, dim> min_shape, rT lambda, rT sigma , rT NA, vec2<point_physical_t> roi, rT dbu)
     {
@@ -131,10 +138,10 @@ template<class rT, size_t _dim = 2> struct grid_info
         //== [0, 2pi)
         info.fourier.start = {0}; 
         info.fourier.step  = lambda / (NA + sigma) / pitch;
-        rT cutoff_freq = get_simulation_system_cutoff_frequency(lambda, NA + sigma);
+        rT cutoff_freq = get_lens_cutoff_frequency(lambda, NA + sigma);
         for(size_t i = 0; i < dim; i++){
             dbu_t size = min_shape.at(i);
-            info.tilesize.at(i) = std::max<dbu_t>(std::ceil(pitch.at(i) * cutoff_freq), size);
+            info.tilesize.at(i) = std::max<dbu_t>(std::ceil(pitch.at(i) * 2 * cutoff_freq /* -cutoff_freq ~ +cutoff_freq */), size);
             if(size != info.tilesize.at(i)) {
                 error_unclassified::out("create grid info size too small in dim-", i, 
                     ". reset from ", size, " to ", info.tilesize.at(i)
@@ -151,7 +158,7 @@ template<class rT, size_t _dim = 2> struct grid_info
         grid_info info;
         info.dbu = dbu;
         info.tilesize = shape;
-        rT cutoff_freq = get_simulation_system_cutoff_frequency(lambda, NA + sigma);
+        rT cutoff_freq = get_lens_cutoff_frequency(lambda, NA + sigma);
         info.spatial.step.fill(std::ceil(rT(1) / cutoff_freq / dbu));
         point_dbu_t pitch_in_dbu = info.spatial.step * shape;
         info.spatial.start = (physical_to_dbu(roi[0] + roi[1], dbu) - pitch_in_dbu) / 2;
