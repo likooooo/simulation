@@ -53,7 +53,8 @@ template<class rT, size_t _dim = 2> struct grid_info
     struct {point_dbu_t start, step;} spatial;
     struct {point_physical_t start, step;} fourier;
     vec<size_t, dim> tilesize;
-
+    //== is_coord_at_center = true 离散点的值代表区间的中点 
+    bool is_coord_at_center {false};
     point_dbu_t shape_in_dbu() const
     {
         return spatial.step * tilesize;
@@ -206,6 +207,7 @@ template<class rT, size_t dim = 2> inline std::ostream& operator << (std::ostrea
         std::make_tuple(std::string("spatial step  :"), to_string(dbu_to_physical(in.spatial.step, in.dbu))),
         std::make_tuple(std::string("fourier start :"), to_string(in.fourier.start)),
         std::make_tuple(std::string("fourier step  :"), to_string(in.fourier.step)), 
+        std::make_tuple(std::string("coords place  :"), std::string(vec2<const char*>{"|*--|corner", "|-*-|center"}[size_t(in.is_coord_at_center)])), 
     };
     print_table(stream, msg, {"* grid info", ""}, -1);
     return stream;

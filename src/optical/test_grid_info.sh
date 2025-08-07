@@ -9,6 +9,7 @@ spatial start :  [0,-200]
 spatial step  :  [1.5625,0]    
 fourier start :  [0,0]         
 fourier step  :  [0.4825,inf]  
+coords place  :  |*--|corner
 # create grid info in bloch mode.
 * grid info                    
 ---------------------------------
@@ -17,6 +18,7 @@ spatial start :  [0,-200]
 spatial step  :  [1.5625,0]    
 fourier start :  [0,0]         
 fourier step  :  [0.4825,inf]  
+coords place  :  |*--|corner
 # create grid info in OPC mode.
 * grid info                           
 ----------------------------------------
@@ -25,6 +27,7 @@ spatial start :  [-4946.67,-220.104]
 spatial step  :  [40.2083,40.2083]    
 fourier start :  [0,0]                
 fourier step  :  [0.01875,4.8]
+coords place  :  |*--|corner
 "
 for (( i=0; i<=2; i++ )); do
     output_cmd=$(./test_grid_info $i  256 1 193 0 1.2  0 -200 400 -200)

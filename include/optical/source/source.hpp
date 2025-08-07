@@ -1,5 +1,6 @@
 #pragma once
 #include "parametric_source.hpp"
+#include <optical/simulation_grid_info.hpp>
 #include <kernels/kernel_loop.hpp>
 #include <assert.h>
 #include <py_helper.hpp>
@@ -19,6 +20,7 @@ template<class T> struct source_point
     using rT = real_t<T>;
     using cT = complex_t<T>;
     rT intensity{1};
+    rT phase{0};
 
     // degree in rad
     rT e_field_direction{0.5_PI};
@@ -126,7 +128,18 @@ template<class T> struct source_grid
     vec2<size_t> shape; 
     vec2<rT> step; 
     polarization_basis basis{polarization_basis::Descartes};
-
+    grid_info<rT, 2> get_grid_info(rT lambda) const
+    {
+        grid_info<rT, 2> gi;
+        gi.tilesize = shape;
+        gi.fourier.step  = step;
+        gi.fourier.start = step * (shape / 2 - 1);
+        vec2<rT> pitch   = lambda / gi.fourier.step;
+        gi.spatial.step  = pitch /(shape - 1);
+        gi.spatial.start = gi.spatial.step * (shape / 2 - 1);
+        gi.is_coord_at_center = true;
+        return gi;
+    }
     source_grid(size_t sample_size_odd, polarization_basis pb = polarization_basis::Descartes) : 
         source_points(std::vector<sp_t>(sample_size_odd * sample_size_odd)), 
         shape({sample_size_odd, sample_size_odd}), 
@@ -135,7 +148,7 @@ template<class T> struct source_grid
     {
         assert(sample_size_odd % 2 == 1);
     }
-    source_grid() : source_grid(11){}
+    source_grid() = default;
     template<class TP> void init(const TP& params, rT e_field_direction = 0.5_PI, rT ellipticity = 0, size_t polarization = polarization_basis::Descartes)
     {
         size_t size = shape[0];

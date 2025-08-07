@@ -1,6 +1,7 @@
 #pragma once
 #include <optical/simulation_grid_info.hpp>
 #include <optical/kernel_loop_v2.hpp>
+#include <optical/source/source.hpp>
 
 template<class rT> std::vector<vec2<int>> get_diffraction_order(const grid_info<rT, 2>& info, vec2<rT> offset_sigmaxy)
 {
@@ -19,4 +20,14 @@ template<class rT> std::vector<vec2<int>> get_diffraction_order(const grid_info<
         }
     }
     return orders;
+}
+
+template<class rT> void get_diffraction_source_grid(const grid_info<rT, 2>& info, const std::vector<complex_t<rT>>& fourier_spectrum, vec2<rT> offset_sigmaxy)
+{
+    std::vector<vec2<int>> orders = get_diffraction_order(info, offset_sigmaxy);
+    auto [lb, ub] = std::minmax_element(orders.begin(), orders.end(), [](vec2<int> a, vec2<int> b){return full_compare<vec2<int>>::less(a, b);})
+    source_grid<rT> sg;
+    sg.basis = polarization_basis::TETM;
+    sg.step = info.fourier.step;
+    
 }
