@@ -19,8 +19,10 @@ template<class T> struct source_point
     //== reference : panoramictech/UserGuide/Aerial/Illuminations/PupilMapIllumination.html
     using rT = real_t<T>;
     using cT = complex_t<T>;
+
+    //== 强度正比于幅值的平方
+    // \( I \propto A^2 \)
     rT intensity{1};
-    rT phase{0};
 
     // degree in rad
     rT e_field_direction{0.5_PI};
