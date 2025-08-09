@@ -15,6 +15,16 @@ template<class T, size_t dim = 2> void regist_thin_mask()
         .def(py::init<>())       
         .def("create", ( std::vector<cT> (*)(cT , cT , const grid_info<rT, dim>&, const lines_dbu& ))&thin_mask<T, dim>::create)
     ;
+
+    if constexpr(dim == 2){
+        py::class_<diffraction<T>>("diffraction")
+            .def(py::init<const grid_info<rT, 2>&>())       
+            .def("update_diffraction_source_points", &diffraction<T>::update_diffraction_source_points,  py::return_value_policy<py::reference_existing_object>())
+            .def("get_imaging_pupil_intensity", &diffraction<T>::get_imaging_pupil_intensity)
+            .def_readonly("grid_info", &diffraction<T>::gi)
+            .def_readonly("source_points", &diffraction<T>::source_points)
+        ;
+    }
 }
 regist_py(
     regist_thin_mask<float, 2>();

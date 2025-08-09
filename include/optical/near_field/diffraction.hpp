@@ -2,6 +2,7 @@
 #include <optical/simulation_grid_info.hpp>
 #include <optical/kernel_loop_v2.hpp>
 #include <optical/source/source.hpp>
+#include <optical/polynomials.hpp>
 
 template<class rT> std::vector<vec2<int>> get_diffraction_order(const grid_info<rT, 2>& info, vec2<rT> offset_sigmaxy)
 {
@@ -32,15 +33,16 @@ template<class rT>int away_from_zero(rT x) {
 template<class rT>
 struct diffraction
 {
-    using cT = real_t<rT>;
+    using cT = complex_t<rT>;
     grid_info<rT, 2> gi;
     std::vector<vec2<int>> desired_orders;
     std::vector<source_point<rT>> source_points;
+    diffraction() = default;
     diffraction(const grid_info<rT, 2>& grid_info) : gi(grid_info), desired_orders(get_diffraction_order(grid_info, {0, 0}))
     {
         source_points.reserve(desired_orders.size());
     }
-    const std::vector<source_point<rT>>& update_diffraction_source_points(const std::vector<complex_t<rT>>& fourier_spectrum_center_zero)
+    const std::vector<source_point<rT>>& update_diffraction_source_points(const std::vector<cT>& fourier_spectrum_center_zero)
     {
         if(fourier_spectrum_center_zero.size() != gi.total_size()){
             std::cerr << "size not match with grid_info" << std::endl; 
@@ -53,7 +55,7 @@ struct diffraction
             cT coef = fourier_spectrum_center_zero.at(ix + iy * gi.tilesize.at(1));
             coef /= fourier_spectrum_center_zero.size();
             source_point<rT> sp;
-            sp.intensity = coef * std::conj(coef);
+            sp.intensity = (coef * std::conj(coef)).real();
             //== TODO : calc DOP here ??
 
             sp.e_field_direction += std::atan2<rT>(order[1], order[0]); 
@@ -67,22 +69,30 @@ struct diffraction
         std::vector<rT> image(shape[0] * shape[1], 0);
         vec2<rT> step = 2/convert_to<vec2<rT>>(shape);
         vec2<rT> half_pixel = step / 2;
+        shape / 2 * step;
         for(const auto& sp : source_points){
-            vec2<rT> gird_pos = sp.sigmaxy / step + half_pixel;
-            vec2<int> from = convert_to<vec2<int>>(gird_pos);
-            vec2<int> to{int(away_from_zero(gird_pos[0])), int(away_from_zero(gird_pos[1]))};
-            auto [movex, movey] = to - from;
-            // int movex = 1, movey = 1;
-            assert(1>= std::abs(movex));
-            assert(1>= std::abs(movey));
-            matrix2x2 coefs = linear_interpolate<rT>::get_coefs<2>(gird_pos - (from * step));
+            vec2<rT> grid_pos = sp.sigmaxy / step;
+            vec2<int> from = convert_to<vec2<int>>(grid_pos);
+            vec2<int> move = vec2<int>{0 == from[0] ? 1 : from[0]/abs(from[0]), 0 == from[1] ? 1 : from[1]/abs(from[1])};
+            from = vec2<int>{0 == from[0] ? -1 : from[0] - int(from[0] > 0), 0 == from[1] ? -1 : from[1] - int(from[1] > 0)};
+
+            vec2<rT> n = abs(grid_pos - from) + 0.5;
+            for(size_t i =0; i < n.size(); i++){
+                if(1 < n.at(i)) {
+                    // std::cout << from << "coef patch : "<< n.at(i) << std::endl;
+                    n.at(i) -= 1;
+                }
+            }
+            matrix2x2<rT> coefs = linear_interpolate<rT>:: template get_coefs<2>(n);
+            // std::cout << coefs << std::endl<< std::endl;
             vec2<size_t> idx = shape / 2 + from;
+            auto [movex, movey] = move;
             image.at(shape[0] * idx[1] + idx[0])                   = coefs[0][0] * sp.intensity;
-            image.at(shape[0] * idx[1] + idx[0] + movex)           = coefs[0][1] * sp.intensity;
-            image.at(shape[0] * (idx[1] + movey) + idx[0])         = coefs[1][0] * sp.intensity;
+            image.at(shape[0] * idx[1] + idx[0] + movex)           = coefs[1][0] * sp.intensity;
+            image.at(shape[0] * (idx[1] + movey) + idx[0])         = coefs[0][1] * sp.intensity;
             image.at(shape[0] * (idx[1] + movey) + idx[0] + movex) = coefs[1][1] * sp.intensity;
         }
-        imshow(image);
+        // imshow(image, convert_to<std::vector<size_t>>(shape));
         return image;
     }
 };
