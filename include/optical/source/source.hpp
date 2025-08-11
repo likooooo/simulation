@@ -5,7 +5,7 @@
 #include <assert.h>
 #include <py_helper.hpp>
 
-template<class T> T k0(T lambda, T NA)
+template<class T> T k0(T lambda, T NA_with_M)
 {
     return 2_PI / lambda * NA;
 }
@@ -48,9 +48,9 @@ template<class T> struct source_point
     {
         return int(sigmaxy.at(0)) == sigmaxy.at(0) && int(sigmaxy.at(0)) == sigmaxy.at(0);
     }
-    vec2<rT> k_vector(rT lambda, rT NA = 1) const
+    vec2<rT> k_vector(rT lambda, rT NA_with_M = 1) const
     {
-        return k0(lambda, NA) * sigmaxy;   
+        return k0(lambda, NA_with_M) * sigmaxy;   
     }
     vec2<cT> polarization_state() const
     {
@@ -88,7 +88,27 @@ template<class T> struct source_point
         source_point tm = te.decompose_unpolarized_component();
         return {te, tm};
     }
-
+    vec2<rT> get_crao_azimuth() const
+    {
+        auto [alpha, beta] = sigmaxy;
+        return {std::asin(std::hypot(alpha, beta)), std::atan2(beta, alpha)};
+    }
+    vec3<rT> get_current_polor_dir(vec3<rT> normal_incidence_polor_dir = {0, 1, 0}) const
+    {
+        auto [crao, azimuth] = get_crao_azimuth()
+        return rotate_matrix(crao, azimuth) | normal_incidence_polor_dir;
+    }
+    constexpr static matrix3x3<rT> rotate_matrix(rT crao = 0, rT azimuth = 0)
+    {
+        using std::cos, std::sin;
+        rT theta = crao, phi = azimuth;
+        matrix3x3<rT> m{
+            cos(theta) * cos(phi),-sin(phi), sin(theta)*cos(phi),
+            cos(theta) * sin(phi), cos(phi), sin(theta)*sin(phi),
+                      -sin(theta),    rT(0),          cos(theta)
+        };
+        return m;
+    }
     bool operator == (const source_point& o) const
     {
         return 0 == std::memcmp(&o, this, sizeof(source_point));
