@@ -113,7 +113,7 @@ void test_source_grid()
     using source_grid_t = source_grid<rT>;
     using parametric_source_t = typename source_grid_t::parametric_source_t;
     auto test = [](source_grid_t&& sg){
-        sg.plot();
+        sg.plot_wafer_pov();
     };
     test(source_grid_t::create(51, typename parametric_source_t::traditional_source_params(), 0));
     test(source_grid_t::create(51, typename parametric_source_t::annular_source_params(), 0.5));

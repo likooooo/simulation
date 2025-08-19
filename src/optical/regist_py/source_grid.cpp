@@ -13,8 +13,11 @@ void regist_source_class()
         .def_readwrite("DOP",&source_point_t::DOP)
         .def_readwrite("ellipticity",&source_point_t::ellipticity)
         .def_readwrite("sigmaxy",&source_point_t::sigmaxy)
-        .def("polarization_state", &source_point_t::polarization_state)
         .def("k_vector", &source_point_t::k_vector)
+        .def("polarization_state", &source_point_t::polarization_state)
+        .def("sp_polarization_state", &source_point_t::sp_polarization_state)
+        .def("get_crao_azimuth", &source_point_t::get_crao_azimuth)
+        .def("get_current_polarized_dir", &source_point_t::get_current_polarized_dir)
         .def("__repr__", (std::string (*)(const source_point_t&))&to_string<source_point_t>)
     ;
     //== parametric source params
@@ -76,12 +79,12 @@ void regist_source_class()
         .def("create_quadratic_leaf_source", source_grid_t::template create<quadratic_leaf_source>,
             (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = 0))
         .def("__repr__", (std::string (*)(const source_grid_t&))&to_string<source_grid_t>)  
-        .def("plot", &source_grid_t::plot)
+        .def("plot_wafer_pov", &source_grid_t::plot_wafer_pov, py::arg("grid_info") = grid_info<T>())
+        .def("plot_mask_pov", &source_grid_t::plot_mask_pov)
         .def_readwrite("source_points", &source_grid_t::source_points)
         .def("shift_dc", (void (source_grid_t::*)(T, T, T))&source_grid_t::shift_dc)
         .def("clear_invalid_source_points", &source_grid_t::clear_invalid_source_points)
         .def("get_dc_from_chief_ray", source_grid_t::get_dc_from_chief_ray)
-        .def("plot", &source_grid_t::plot)
     ;
     init_stl_converters<std::vector<source_point_t>>();
 }

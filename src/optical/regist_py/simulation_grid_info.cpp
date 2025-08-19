@@ -31,6 +31,11 @@ template<class T, size_t dim = 2> void regist_grid_info()
     ;
 }
 regist_py(
+    using std::array;
+    init_stl_converters<       
+        array<array<float, 1>, 2>,  array<size_t, 1>,
+        array<array<float, 3>, 2>
+    >();
     regist_grid_info<float, 1>();
     regist_grid_info<float, 2>();
     regist_grid_info<float, 3>();

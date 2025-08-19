@@ -4,32 +4,6 @@
 #include <optical/source/source.hpp>
 #include <optical/polynomials.hpp>
 
-template<class rT> std::vector<vec2<int>> get_diffraction_order(const grid_info<rT, 2>& info, vec2<rT> offset_sigmaxy)
-{
-    auto [start, step] = info.fourier; // Wafer P.O.V
-    start += offset_sigmaxy;
-    vec2<int> lb = convert_to<vec2<int>>((vec2<rT>{-1, -1} + start) / step) - 1;
-    vec2<int> ub = convert_to<vec2<int>>((vec2<rT>{1, 1}   + start) / step) + 1;
-
-    std::vector<vec2<int>> orders;
-    orders.reserve((ub[1] - ub[0]) * (lb[1] - lb[0]));
-    for(int y = lb[1]; y < ub[1]; y++){
-        for(int x = lb[0]; x < ub[0]; x++){
-            vec2<int> order{x, y};
-            if(1 < vector_norm((step * order) - start)) continue;
-            orders.push_back(order);
-        }
-    }
-    return orders;
-}
-template<class rT>int away_from_zero(rT x) {
-    if (x > 0)
-        return std::ceil(x);   // 向正无穷
-    else if (x < 0)
-        return std::floor(x);  // 向负无穷
-    else
-        return 0;
-}
 template<class rT>
 struct diffraction
 {

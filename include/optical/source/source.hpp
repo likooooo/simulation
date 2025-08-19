@@ -7,7 +7,7 @@
 
 template<class T> T k0(T lambda, T NA_with_M)
 {
-    return 2_PI / lambda * NA;
+    return 2_PI / lambda * NA_with_M;
 }
 template<class T> bool check_na_valid(T NA, T immersion_index)
 {
@@ -62,6 +62,16 @@ template<class T> struct source_point
         polar.at(1) *= std::exp(cT(0, 0.5_PI * ellipticity));
         return polar;
     }
+    vec2<vec3<cT>> sp_polarization_state() const
+    {
+        vec3<cT> TE{0, 1, 0};
+        vec3<cT> TM{std::exp(cT(0, 0.5_PI * ellipticity)), 0, 0};
+
+        vec2<vec3<cT>> local_polarized_basis; 
+        local_polarized_basis.at(0) = get_current_polarized_dir(TE);
+        local_polarized_basis.at(1) = get_current_polarized_dir(TM);
+        return local_polarized_basis;
+    }
     //  0 : unpolarization
     //  1 : full TE-polarization
     // -1 : full TM-polarization
@@ -93,10 +103,10 @@ template<class T> struct source_point
         auto [alpha, beta] = sigmaxy;
         return {std::asin(std::hypot(alpha, beta)), std::atan2(beta, alpha)};
     }
-    vec3<rT> get_current_polor_dir(vec3<rT> normal_incidence_polor_dir = {0, 1, 0}) const
+    vec3<cT> get_current_polarized_dir(vec3<cT> normal_incidence_polor_dir = {0, 1, 0}) const
     {
-        auto [crao, azimuth] = get_crao_azimuth()
-        return rotate_matrix(crao, azimuth) | normal_incidence_polor_dir;
+        auto [crao, azimuth] = get_crao_azimuth();
+        return convert_to<matrix3x3<cT>>(rotate_matrix(crao, azimuth)) | normal_incidence_polor_dir;
     }
     constexpr static matrix3x3<rT> rotate_matrix(rT crao = 0, rT azimuth = 0)
     {
@@ -135,13 +145,30 @@ template<class T> std::ostream& operator<<(std::ostream& s, const std::vector<so
     return s;
 }
 
+template<class rT> std::vector<vec2<int>> get_diffraction_order(const grid_info<rT, 2>& info, vec2<rT> offset_sigmaxy)
+{
+    auto [start, step] = info.fourier; // Wafer P.O.V
+    start += offset_sigmaxy;
+    vec2<int> lb = convert_to<vec2<int>>((vec2<rT>{-1, -1} + start) / step) - 1;
+    vec2<int> ub = convert_to<vec2<int>>((vec2<rT>{1, 1}   + start) / step) + 1;
+
+    std::vector<vec2<int>> orders;
+    orders.reserve((ub[1] - ub[0]) * (lb[1] - lb[0]));
+    for(int y = lb[1]; y < ub[1]; y++){
+        for(int x = lb[0]; x < ub[0]; x++){
+            vec2<int> order{x, y};
+            if(1 < vector_norm((step * order) - start)) continue;
+            orders.push_back(order);
+        }
+    }
+    return orders;
+}
 enum polarization_basis
 {
     Descartes = 0, TETM, X_Y_Zone, count
 };
 template<class T> struct source_grid
 {
-
     using sp_t = source_point<T>;
     using rT = typename sp_t::rT;
     using cT = typename sp_t::cT;
@@ -170,6 +197,16 @@ template<class T> struct source_grid
     {
         assert(sample_size_odd % 2 == 1);
     }
+    source_grid(const std::vector<vec2<int>>& diffrac_orders, const grid_info<rT, 2>& info) :
+        shape(info.tilesize), step(info.fourier.step), basis(polarization_basis::TETM)
+    {
+        source_points.reserve(diffrac_orders.size());
+        for(vec2<int> ixy : diffrac_orders){
+            sp_t sp;
+            sp.sigmaxy   = step * ixy;
+            sp.e_field_direction += std::atan2(ixy[1], ixy[0]);
+        }
+    }
     source_grid() = default;
     template<class TP> void init(const TP& params, rT e_field_direction = 0.5_PI, rT ellipticity = 0, size_t polarization = polarization_basis::Descartes)
     {
@@ -191,13 +228,13 @@ template<class T> struct source_grid
         else 
             unreachable_constexpr_if<TP>();
 
-        for(size_t y = 0; y < size; y++){
-            for(size_t x = 0; x < size; x++){
+        for(int y = 0; y < size; y++){
+            for(int x = 0; x < size; x++){
                 auto& sp = sg.source_points.at(y * size + x);
                 sp.intensity = intensity_image.at(y * size + x); 
                 sp.ellipticity = ellipticity;
                 sp.e_field_direction = e_field_direction;
-                sp.sigmaxy = vec2<rT>{rT(x), rT(y)} * sg.step;
+                sp.sigmaxy = sg.step * vec2<int>{x - int(size /2), y - int(size /2)};
                 if(sg.basis == polarization_basis::TETM) sp.e_field_direction += std::atan2(sp.sigmaxy[1], sp.sigmaxy[0]);
             }
         }
@@ -284,20 +321,64 @@ template<class T> struct source_grid
         for(size_t i = 0; i < source_points.size(); i++) sigmaxy.push_back(source_points.at(i).sigmaxy);
         return sigmaxy;
     }
-    void plot() const
+    void plot(const std::string& title, const grid_info<rT>& mask_grid_info, 
+        rT theta = 0, rT phi = 0, rT wavelength = 0, rT NA = 0, rT M = 0
+    ) const
     {
+        bool is_wafer_pov = (wavelength == 0 || NA == 0 || M == 0);
+
         source_grid sg = *this;
+        //== shift mask-POV
+        vec2<rT> shift_by_angle{0};
+        if(!is_wafer_pov){
+            sg.clear_invalid_source_points();
+            shift_by_angle = get_dc_from_chief_ray(theta, phi) / (NA / M);
+            vec2<rT> shift_sigma_xy = mask_grid_info.fourier.start + shift_by_angle;
+            sg.shift_dc(shift_sigma_xy);
+        }
         sg.decompose_polarized_components();
-        std::vector<std::string> color;
-        color.reserve(sg.source_points.size());
+
+        std::vector<vec2<rT>> sigmaxy = sg.get_sigmaxy_bitmap();
         std::vector<rT> ellipticity = sg.get_ellipticity();
-        std::transform(ellipticity.begin(), ellipticity.end(), std::back_insert_iterator(color), 
-            [](rT ellip){return ellip >= 0 ? "red" : "blue";}
-        );
+        std::vector<std::string> color;
+        {
+            color.reserve(sg.source_points.size());
+            std::transform(ellipticity.begin(), ellipticity.end(), std::back_insert_iterator(color), 
+                [](rT ellip){return ellip >= 0 ? "red" : "blue";}
+            );
+        }
         std::vector<rT> intensity = sg.get_intensity_bitmap();
-        rT half_step = (0.5 / (shape[0] - 1));
-        intensity *= half_step;
-        plot_field<rT>(sg.get_sigmaxy_bitmap(), sg.get_e_field_direction(), intensity, ellipticity, color, "sigma XY");
+        std::vector<rT> dir = sg.get_e_field_direction();
+
+        for(vec2<int> ixy : get_diffraction_order(mask_grid_info, shift_by_angle)){
+            vec2<rT> xy = mask_grid_info.fourier.step * ixy;
+            sigmaxy.push_back(xy);
+            dir.push_back(0);
+            intensity.push_back(rT(1));
+            ellipticity.push_back(0);
+            color.push_back("green");
+
+            sigmaxy.push_back(xy);
+            dir.push_back(0.5_PI);
+            intensity.push_back(rT(1));
+            ellipticity.push_back(0);
+            color.push_back("green");
+        }
+
+        if(!is_wafer_pov){
+            for(auto& xy : sigmaxy) xy *= k0(wavelength, NA / M);
+        }
+        rT line_length_scalar = (0.5 / (shape[0] - 1));
+        intensity *= line_length_scalar;
+        plot_field<rT>(sigmaxy, dir, intensity, ellipticity, color, title);
+    }
+    void plot_wafer_pov(const grid_info<rT>& info = grid_info<rT>()) const
+    {
+        plot("wafer P.O.V", info);
+    }
+    void plot_mask_pov(const grid_info<rT>& info, rT theta, rT phi, rT wavelength, rT NA, rT M) const
+    {
+        plot("mask P.O.V", info, theta, phi, wavelength, NA, M);
     }
 };
 template<class T> std::ostream& operator<<(std::ostream& s, const source_grid<T> & a) 
