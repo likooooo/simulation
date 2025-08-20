@@ -62,26 +62,38 @@ void regist_source_class()
         .def_readwrite("dipole_leaf", &quadratic_leaf_source::params)
         .def_readwrite("aspect_ratio", &quadratic_leaf_source::aspectRatio)
     ;
+
+    py::enum_<polarization_basis>("polarization_basis")
+        .value("SP", polarization_basis::SP)
+        .value("Descartes", polarization_basis::Descartes)
+        .value("X_Y_Zone", polarization_basis::X_Y_Zone)
+        .value("count", polarization_basis::count)
+    ;
+
     using source_grid_t = source_grid<T>;
     py::class_<source_grid_t>(("source_grid_" + suffix).c_str())
         .def(py::init<>())
         .def(py::init<size_t>())
+        .def(py::init<const std::vector<vec2<T>>&, vec2<size_t>, vec2<T>>())
         .def("create_traditional_source", source_grid_t::template create<traditional_source>,
-            (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = 0))
+            (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = int(polarization_basis::Descartes)))
         .def("create_annular_source", source_grid_t::template create<annular_source>,
-            (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = 0))
+            (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = int(polarization_basis::Descartes)))
         .def("create_dipole_fan_source", source_grid_t::template create<dipole_fan_source>,
-            (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = 0))
+            (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = int(polarization_basis::Descartes)))
         .def("create_quadratic_fan_source", source_grid_t::template create<quadratic_fan_source>,
-            (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = 0))
+            (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = int(polarization_basis::Descartes)))
         .def("create_dipole_leaf_source", source_grid_t::template create<dipole_leaf_source>,
-            (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = 0))
+            (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = int(polarization_basis::Descartes)))
         .def("create_quadratic_leaf_source", source_grid_t::template create<quadratic_leaf_source>,
-            (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = 0))
+            (py::arg("size"), py::arg("source_params"), py::arg("e_field_direction") = 0, py::arg("ellipticity") = 0, py::arg("polarization") = int(polarization_basis::Descartes)))
         .def("__repr__", (std::string (*)(const source_grid_t&))&to_string<source_grid_t>)  
+        .def_readwrite("source_points", &source_grid_t::source_points)
+        .def_readwrite("shape", &source_grid_t::shape)
+        .def_readwrite("step", &source_grid_t::step)
+        .def_readwrite("basis", &source_grid_t::basis)
         .def("plot_wafer_pov", &source_grid_t::plot_wafer_pov, py::arg("grid_info") = grid_info<T>())
         .def("plot_mask_pov", &source_grid_t::plot_mask_pov)
-        .def_readwrite("source_points", &source_grid_t::source_points)
         .def("shift_dc", (void (source_grid_t::*)(T, T, T))&source_grid_t::shift_dc)
         .def("clear_invalid_source_points", &source_grid_t::clear_invalid_source_points)
         .def("get_dc_from_chief_ray", source_grid_t::get_dc_from_chief_ray)

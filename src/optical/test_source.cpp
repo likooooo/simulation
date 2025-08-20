@@ -118,9 +118,9 @@ void test_source_grid()
     test(source_grid_t::create(51, typename parametric_source_t::traditional_source_params(), 0));
     test(source_grid_t::create(51, typename parametric_source_t::annular_source_params(), 0.5));
     test(source_grid_t::create(51, typename parametric_source_t::dipole_fan_source_params(), 1));
-    test(source_grid_t::create(51, typename parametric_source_t::quadratic_fan_source_params(), 0, polarization_basis::TETM));
-    test(source_grid_t::create(51, typename parametric_source_t::dipole_leaf_source_params(), -0.5, polarization_basis::TETM));
-    test(source_grid_t::create(51, typename parametric_source_t::quadratic_leaf_source_params(), -1, polarization_basis::TETM));
+    test(source_grid_t::create(51, typename parametric_source_t::quadratic_fan_source_params(), 0, polarization_basis::SP));
+    test(source_grid_t::create(51, typename parametric_source_t::dipole_leaf_source_params(), -0.5, polarization_basis::SP));
+    test(source_grid_t::create(51, typename parametric_source_t::quadratic_leaf_source_params(), -1, polarization_basis::SP));
 }
 int main()
 {

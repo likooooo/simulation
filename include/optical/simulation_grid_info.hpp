@@ -177,7 +177,7 @@ template<class rT, size_t _dim = 2> struct grid_info
         return (sigma + NA) / NA;
     }
     //== without multiply k0. (2pi *NA/lambda)
-    static vec2<vec3<rT>> wafer_pov_k_space_boundary(rT NA, rT sigma, vec2<rT> shift_effict_by_chief_ray = {0, 0})
+    static vec2<vec3<rT>> mask_pov_k_space_boundary(rT NA, rT sigma, vec2<rT> shift_effict_by_chief_ray = {0, 0})
     { 
         //== k-space boundary without lens effect 
         vec2<rT> center{0, 0};
@@ -190,7 +190,7 @@ template<class rT, size_t _dim = 2> struct grid_info
         vec3<rT> blue_boundary{center[0], center[1], radius};
         return {gray_boundary, blue_boundary};
     }
-    static vec2<vec3<rT>> mask_pov_k_space_boundary(rT NA)
+    static vec2<vec3<rT>> wafer_pov_k_space_boundary(rT NA)
     {
         vec2<rT> center{0, 0};
         rT radius = rT(1) / NA;

@@ -165,7 +165,7 @@ template<class rT> std::vector<vec2<int>> get_diffraction_order(const grid_info<
 }
 enum polarization_basis
 {
-    Descartes = 0, TETM, X_Y_Zone, count
+    SP = 0, Descartes, X_Y_Zone, count
 };
 template<class T> struct source_grid
 {
@@ -197,14 +197,28 @@ template<class T> struct source_grid
     {
         assert(sample_size_odd % 2 == 1);
     }
+    source_grid(const std::vector<vec2<rT>>& sigmaxy_list, vec2<size_t> shape, vec2<rT> step) :
+        basis(polarization_basis::SP)
+    {
+        this->shape = shape;
+        this->step  = step;
+        source_points.reserve(sigmaxy_list.size());
+        for(vec2<rT> xy : sigmaxy_list){
+            sp_t sp;
+            sp.sigmaxy   = xy;
+            sp.e_field_direction += std::atan2(xy[1], xy[0]);
+            source_points.push_back(sp);
+        }
+    }
     source_grid(const std::vector<vec2<int>>& diffrac_orders, const grid_info<rT, 2>& info) :
-        shape(info.tilesize), step(info.fourier.step), basis(polarization_basis::TETM)
+        shape(info.tilesize), step(info.fourier.step), basis(polarization_basis::SP)
     {
         source_points.reserve(diffrac_orders.size());
         for(vec2<int> ixy : diffrac_orders){
             sp_t sp;
             sp.sigmaxy   = step * ixy;
             sp.e_field_direction += std::atan2(ixy[1], ixy[0]);
+            source_points.push_back(sp);
         }
     }
     source_grid() = default;
@@ -235,7 +249,7 @@ template<class T> struct source_grid
                 sp.ellipticity = ellipticity;
                 sp.e_field_direction = e_field_direction;
                 sp.sigmaxy = sg.step * vec2<int>{x - int(size /2), y - int(size /2)};
-                if(sg.basis == polarization_basis::TETM) sp.e_field_direction += std::atan2(sp.sigmaxy[1], sp.sigmaxy[0]);
+                if(sg.basis == polarization_basis::SP) sp.e_field_direction += std::atan2(sp.sigmaxy[1], sp.sigmaxy[0]);
             }
         }
     }
@@ -321,7 +335,7 @@ template<class T> struct source_grid
         for(size_t i = 0; i < source_points.size(); i++) sigmaxy.push_back(source_points.at(i).sigmaxy);
         return sigmaxy;
     }
-    void plot(const std::string& title, const grid_info<rT>& mask_grid_info, 
+    std::vector<vec2<rT>> plot(const std::string& title, const grid_info<rT>& mask_grid_info, 
         rT theta = 0, rT phi = 0, rT wavelength = 0, rT NA = 0, rT M = 0
     ) const
     {
@@ -366,19 +380,22 @@ template<class T> struct source_grid
         }
 
         if(!is_wafer_pov){
+            //== TODO
+            // sg.source_points get_current_polarized_dir
             for(auto& xy : sigmaxy) xy *= k0(wavelength, NA / M);
         }
         rT line_length_scalar = (0.5 / (shape[0] - 1));
         intensity *= line_length_scalar;
         plot_field<rT>(sigmaxy, dir, intensity, ellipticity, color, title);
+        return sigmaxy;
     }
-    void plot_wafer_pov(const grid_info<rT>& info = grid_info<rT>()) const
+    std::vector<vec2<rT>> plot_wafer_pov(const grid_info<rT>& info = grid_info<rT>()) const
     {
-        plot("wafer P.O.V", info);
+        return plot("Wafer P.O.V", info);
     }
-    void plot_mask_pov(const grid_info<rT>& info, rT theta, rT phi, rT wavelength, rT NA, rT M) const
+    std::vector<vec2<rT>> plot_mask_pov(const grid_info<rT>& info, rT theta, rT phi, rT wavelength, rT NA, rT M) const
     {
-        plot("mask P.O.V", info, theta, phi, wavelength, NA, M);
+        return plot("Mask P.O.V", info, theta, phi, wavelength, NA, M);
     }
 };
 template<class T> std::ostream& operator<<(std::ostream& s, const source_grid<T> & a) 
